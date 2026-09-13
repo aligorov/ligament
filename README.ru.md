@@ -315,6 +315,25 @@ cat admin_password.txt
 > [!TIP]
 > Все пакеты автоматически регистрируют ярлык приложения с русской локализацией в меню «Пуск» Fly Desktop (Astra Linux) и MATE (РЕД ОС), прописывают исполняемый файл в `/usr/bin/ligament-authenticator`, устанавливают системные иконки в `/usr/share/icons/hicolor` и регистрируют протокол `x-scheme-handler/ligament`. Для установки без прав администратора переносимый архив `.tar.gz` поддерживает установку в домашнюю папку пользователя (`./install.sh`).
 
+### 🌐 Развёртывание Ligament Relay (Периферийный агент филиала)
+
+Для автономной работы удалённых филиалов и защищённых сегментов сети при обрыве связи с центральным ядром разворачивается **Ligament Relay** ([репозиторий aligorov/ligament-relay](https://github.com/aligorov/ligament-relay)):
+
+1. **Скачайте готовый compose-манифест**:
+   ```bash
+   curl -sSL https://raw.githubusercontent.com/aligorov/ligament/main/docker-compose.relay.yml -o docker-compose.yml
+   ```
+2. **Создайте `config.yaml`** (параметры подключения генерируются в панели администратора ядра `/admin/relays`):
+   ```yaml
+   core:
+     url: "https://2fa.yourdomain.com"
+     password: "СгенерированныйПарольФилиала"
+   ```
+3. **Запустите узел**:
+   ```bash
+   docker compose up -d
+   ```
+
 ---
 
 ## 📄 Документация и презентация

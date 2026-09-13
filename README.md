@@ -321,6 +321,25 @@ Ligament Authenticator is packaged and verified for major enterprise Linux distr
 > [!TIP]
 > All Linux packages automatically create system application launcher entries (`ligament-authenticator.desktop`), install high-resolution icons into `/usr/share/icons/hicolor`, register the `/usr/bin/ligament-authenticator` executable symlink, and support custom protocol handlers (`x-scheme-handler/ligament`). For unprivileged environments, `./install.sh` inside the `.tar.gz` archive can be executed without `sudo` into `~/.local`.
 
+### 🌐 Ligament Relay Deployment (Branch Edge Node)
+
+For remote branch offices and isolated network enclaves requiring offline 2FA autonomy, deploy **Ligament Relay** ([repository aligorov/ligament-relay](https://github.com/aligorov/ligament-relay)):
+
+1. **Download the pre-configured compose manifest**:
+   ```bash
+   curl -sSL https://raw.githubusercontent.com/aligorov/ligament/main/docker-compose.relay.yml -o docker-compose.yml
+   ```
+2. **Create `config.yaml`** (connection parameters are generated in the core admin console at `/admin/relays`):
+   ```yaml
+   core:
+     url: "https://2fa.yourdomain.com"
+     password: "GeneratedBranchPassword"
+   ```
+3. **Start the node**:
+   ```bash
+   docker compose up -d
+   ```
+
 ---
 
 ## 📄 Documentation & Presentation

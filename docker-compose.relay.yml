@@ -1,0 +1,25 @@
+# ==============================================================================
+# Ligament Relay — Периферийный edge-сервер филиала для оффлайн-автономии 2FA
+# Официальный репозиторий: https://github.com/aligorov/ligament-relay
+# ==============================================================================
+# Быстрый запуск:
+#   1. Создайте config.yaml с параметрами подключения к центральному ядру:
+#      core:
+#        url: "https://2fa.yourdomain.com"
+#        password: "SecretPassword"
+#   2. Запустите:
+#      docker compose -f docker-compose.relay.yml up -d
+# ==============================================================================
+
+services:
+  relay:
+    image: aligorov/ligament-relay:${RELAY_IMAGE_TAG:-latest}
+    container_name: ligament-relay
+    restart: unless-stopped
+    network_mode: "host" # Режим host необходим для RADIUS (:1812/udp), mDNS Discovery (:5353/udp) и LAN Push (:8082/tcp)
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      - relay-data:/app/data
+
+volumes:
+  relay-data:
