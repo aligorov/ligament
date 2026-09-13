@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Ligament — self-hosted MFA: возможности и сравнение с аналогами РФ (v2)</title>
+<style>
+  @page { size: 1280px 720px; margin: 0; }
+  html, body { margin: 0; padding: 0; background: #0f172a; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; color: #0f172a; }
+
+  .page { width: 1280px; height: 720px; page-break-after: always; background: #f8fafc; }
+  .page.dark {
+    background:
+      radial-gradient(460px 460px at 88% -12%, rgba(49,46,129,0.38), transparent 70%),
+      radial-gradient(420px 420px at -10% 112%, rgba(79,70,229,0.22), transparent 70%),
+      #0f172a;
+    color: #e2e8f0; }
+  .page:last-child { page-break-after: auto; }
+
+  .pad { padding: 40px 64px 26px; height: 100%; display: flex; flex-direction: column; }
+  .headrow { display: flex; justify-content: space-between; align-items: baseline; }
+
+  .kicker { font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #4f46e5; font-weight: 700; }
+  h1 { font-size: 64px; line-height: 1.05; margin: 14px 0 0; font-weight: 800; letter-spacing: -1px; }
+  h2 { font-size: 32px; margin: 4px 0 14px; font-weight: 800; letter-spacing: -0.5px; }
+  .sub { font-size: 20px; color: #475569; line-height: 1.45; }
+  .dark .sub { color: #94a3b8; }
+
+  .footer { margin-top: auto; display: flex; justify-content: space-between; font-size: 12px; color: #94a3b8; }
+  .num { font-size: 15px; font-weight: 800; color: #cbd5e1; letter-spacing: 1px; }
+
+  .grid { display: grid; gap: 14px; }
+  .g2 { grid-template-columns: 1fr 1fr; }
+  .g3 { grid-template-columns: 1fr 1fr 1fr; }
+  .card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px 20px; }
+  .card h3 { margin: 0 0 8px; font-size: 18px; font-weight: 700; color: #0f172a; }
+  .card p { margin: 0; font-size: 14px; line-height: 1.5; color: #475569; }
+  .card .tag { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 1px; color: #4f46e5; background: #eef2ff; border-radius: 6px; padding: 3px 8px; margin-bottom: 10px; text-transform: uppercase; }
+  .card.hl { border-color: #c7d2fe; background: #eef2ff; }
+
+  ul.clean { margin: 0; padding-left: 18px; font-size: 14.5px; line-height: 1.6; color: #334155; }
+  ul.clean li { margin-bottom: 7px; }
+  ul.clean li b { color: #0f172a; }
+
+  table.cmp { width: 100%; table-layout: fixed; word-break: break-word; hyphens: auto; border-collapse: collapse; background: #fff; border-radius: 12px; overflow: hidden; font-size: 12px; }
+  table.cmp th, table.cmp td { border: 1px solid #e2e8f0; padding: 5px 8px; text-align: left; vertical-align: top; line-height: 1.25; }
+  table.cmp th { background: #0f172a; color: #e2e8f0; font-weight: 700; font-size: 12px; }
+  table.cmp th:first-child { background: #1e293b; }
+  table.cmp th.col-lig { color: #312e81; background: #c7d2fe; }
+  table.cmp td:first-child { font-weight: 700; background: #f1f5f9; width: 148px; }
+  table.cmp td.yes { color: #047857; font-weight: 600; }
+  table.cmp td.no { color: #b91c1c; }
+  table.cmp td.part { color: #92400e; }
+  table.cmp .col-lig { background: #eef2ff; }
+
+  .pill { display: inline-block; border-radius: 999px; padding: 4px 12px; font-size: 12.5px; font-weight: 600; margin: 0 6px 8px 0; }
+  .pill.i { background: #eef2ff; color: #3730a3; }
+
+  .arch { display: flex; gap: 14px; }
+  .arch .box { flex: 1; background: #ffffff; border: 1.5px solid #c7d2fe; border-radius: 12px; padding: 14px 16px; text-align: center; }
+  .arch .box b { display: block; font-size: 15px; color: #312e81; margin-bottom: 5px; }
+  .arch .box span { font-size: 12.5px; color: #475569; line-height: 1.4; display: block; }
+  .arch .arrow { align-self: center; color: #6366f1; font-size: 22px; font-weight: 800; }
+
+  .cover-wrap { height: 100%; display: flex; flex-direction: column; padding: 0 96px; }
+  .cover-center { margin-top: auto; margin-bottom: auto; }
+  .brand-mark { width: 64px; height: 64px; border-radius: 16px; background: #4f46e5; color: #fff; font-size: 34px; font-weight: 800; display: flex; align-items: center; justify-content: center; margin-bottom: 30px; }
+  .cover-foot { display: flex; justify-content: space-between; font-size: 13px; color: #64748b; letter-spacing: 2px; text-transform: uppercase; padding-bottom: 44px; }
+</style>
+</head>
+<body>
+
+<!-- 1 ТИТУЛ -->
+<div class="page dark">
+  <div class="cover-wrap">
+    <div class="cover-center">
+      <div class="brand-mark">L</div>
+      <div class="kicker">Self-hosted многофакторная аутентификация</div>
+      <h1>Ligament</h1>
+      <div class="sub" style="max-width:780px;margin-top:18px;">Полный контроль над вторым фактором: RADIUS, Windows RDP, SSO и приложение — в одном контейнере, на вашей инфраструктуре.</div>
+      <div style="margin-top:34px;">
+        <span class="pill i">Обзор возможностей</span>
+        <span class="pill i">Сравнение с аналогами РФ</span>
+        <span class="pill i">v0.4.77 · сентябрь 2026</span>
+      </div>
+    </div>
+    <div class="cover-foot"><span>ligam.org</span><span>MFA / 2FA Platform</span></div>
+  </div>
+</div>
+
+<!-- 2 КОНТЕКСТ -->
+<div class="page">
+  <div class="pad">
+    <div class="headrow"><div class="kicker">Контекст</div><div class="num">02</div></div>
+    <h2>Почему self-hosted MFA нужен сейчас</h2>
+    <div class="grid g3">
+      <div class="card"><div class="tag">Данные в контуре</div><h3>Секреты не покидают сервер</h3><p>Облачные MFA-сервисы хранят пользователей и логи входов у вендора. Ligament целиком разворачивается в вашем Docker: БД, аудит, мастер-ключ — ваши.</p></div>
+      <div class="card"><div class="tag">Импортонезависимость</div><h3>Без внешних зависимостей</h3><p>Не нужен доступ к зарубежным облакам. Сервер, приложение и провайдеры доставки (SMTP/SMS/Telegram) настраиваются на любые российские сервисы.</p></div>
+      <div class="card"><div class="tag">Стоимость</div><h3>Прозрачная модель</h3><p>Бесплатно до 5 пользователей бессрочно, демонстрация по подписанному файлу, подписка или разовая бессрочная лицензия — без пер-юзерных облачных тарифов.</p></div>
+    </div>
+    <div class="card hl" style="margin-top:14px;"><p style="font-size:15px;"><b>Один администратор разворачивает Ligament за 10 минут:</b> docker compose → админка → подключение сетевого оборудования, RDP и приложений. Русскоязычная веб-панель, все настройки в базе — без правки env-файлов.</p></div>
+    <div class="footer"><span>Ligament · Контекст</span><span>2 / 15</span></div>
+  </div>
+</div>
+
+<!-- 3 АРХИТЕКТУРА -->
+<div class="page">
+  <div class="pad">
+    <div class="headrow"><div class="kicker">Платформа</div><div class="num">03</div></div>
+    <h2>Архитектура: всё в одном образе</h2>
+    <div class="arch">
+      <div class="box"><b>Сервер Ligament</b><span>Go, один бинарник<br>PostgreSQL<br>Web-админка + REST API</span></div>
+      <div class="arrow">⇄</div>
+      <div class="box"><b>Приложение</b><span>Flutter: Android, iOS, macOS, Windows<br>push + number matching</span></div>
+      <div class="arrow">⇄</div>
+      <div class="box"><b>Windows CP</b><span>Credential Provider<br>для RDP и консоли<br>FIDO2 + число-матчинг</span></div>
+    </div>
+    <div class="grid g2" style="margin-top:16px;">
+      <div class="card"><h3>Протоколы наружу</h3><p>RADIUS (PAP, EAP-TTLS/PAP, PEAP/MS-CHAPv2, Accounting), OpenID Connect Provider, REST API + OpenAPI 3.0.3, LDAP/AD-синхронизация.</p></div>
+      <div class="card"><h3>Доставка факторов</h3><p>Push в приложение, Telegram-бот, email, SMS (пресеты российских шлюзов), TOTP, резервные коды, passkeys/WebAuthn.</p></div>
+    </div>
+    <div class="card hl" style="margin-top:14px;"><p style="font-size:15px;"><b>Развёртывание:</b> Docker (amd64 + arm64) из Docker Hub или оффлайн-перенос образа; обновление — смена тега. Русскоязычный интерфейс управления.</p></div>
+    <div class="footer"><span>Ligament · Архитектура</span><span>3 / 15</span></div>
+  </div>
+</div>
+
+<!-- 4 ФАКТОРЫ -->
+<div class="page">
+  <div class="pad">
+    <div class="headrow"><div class="kicker">Второй фактор</div><div class="num">04</div></div>
+    <h2>Факторы и каналы подтверждения</h2>
+    <div class="grid g3">
+      <div class="card"><h3>Push + number matching</h3><p>Подтверждение входа с вводом контрольного числа — защита от push-fatigue атак. Число показывается на самом экране входа (RDP-тайл, веб).</p></div>
+      <div class="card"><h3>TOTP и резервные кодs</h3><p>Классические 6-значные коды (совместим с Google Authenticator), одноразовые коды восстановления, защита от переигрывания.</p></div>
+      <div class="card"><h3>Passkeys / WebAuthn</h3><p>Беспарольный вход и аппаратные ключи (YubiKey) в вебе и на тайле Windows — FIDO2-церемония прямо на экране входа.</p></div>
+      <div class="card"><h3>Telegram</h3><p>Бот: коды, push-подтверждения одной кнопкой, привязка аккаунта, уведомления о входах.</p></div>
+      <div class="card"><h3>Email и SMS</h3><p>Настраиваемые шаблоны с подстановками; SMS-пресеты российских шлюзов; сообщения на языке получателя.</p></div>
+      <div class="card"><h3>Гибкие политики</h3><p>Предпочтительные каналы на пользователя и группу, TTL кодов, лимиты попыток, пер-юзерная блокировка брутфорса.</p></div>
+    </div>
+    <div class="footer"><span>Ligament · Факторы</span><span>4 / 15</span></div>
+  </div>
+</div>
+
+<!-- 5 RADIUS -->
+<div class="page">
+  <div class="pad">
+    <div class="headrow"><div class="kicker">Сеть и VPN</div><div class="num">05</div></div>
+    <h2>RADIUS: Wi-Fi 802.1X, VPN, сетевое оборудование</h2>
+    <div class="grid g2">
+      <div class="card"><h3>Методы и удержание push</h3><p>PAP и EAP-TTLS/PAP — «пароль + код» в одном поле; PEAP/MS-CHAPv2 — для нативных supplicant'ов. Push-удержание: NAS ждёт подтверждения из приложения.</p></div>
+      <div class="card"><h3>Окно доверия устройств</h3><p>После успешного 2FA повторные подключения без второго фактора. Настраивается на пользователя и на группу (дней), глобально — выключено.</p></div>
+      <div class="card"><h3>Любое RADIUS-оборудование</h3><p>UniFi, MikroTik, Cisco, Fortinet и любой NAS: Vendor-Specific Attributes, Accounting, ротация секрета без простоя, Message-Authenticator по RFC 3579.</p></div>
+      <div class="card"><h3>Защита периметра</h3><p>Rate-limit на пакет, пер-юзерные счётчики неудач, fail2ban-механика без самобана маршрутизатора, чёрные/белые списки IP.</p></div>
+    </div>
+    <div class="card hl" style="margin-top:14px;"><p style="font-size:15px;"><b>Сценарий:</b> корпоративный Wi-Fi и VPN без пароль-спамства — пользователь подтверждает вход в приложении раз в заданное окно, остальные подключения проходят по доверию.</p></div>
+    <div class="footer"><span>Ligament · RADIUS</span><span>5 / 15</span></div>
+  </div>
+</div>
+
+<!-- 6 WINDOWS -->
+<div class="page">
+  <div class="pad">
+    <div class="headrow"><div class="kicker">Windows</div><div class="num">06</div></div>
+    <h2>Windows Credential Provider: 2FA на RDP и консоли</h2>
+    <div class="grid g2">
+      <div class="card"><h3>Родной тайл входа</h3><p>Собственный провайдер для LogonUI: логин + пароль + второй фактор прямо на экране RDP. Независимые флаги для RDP-сессий и физической консоли.</p></div>
+      <div class="card"><h3>Number matching на тайле</h3><p>Контрольное число отображается на экране входа — подтверждение только с ним. Fail-close по политике: сервер недоступен → вход запрещён.</p></div>
+      <div class="card"><h3>FIDO2 прямо на тайле</h3><p>WebAuthn-церемония на экране входа: аппаратные ключи/YubiKey. Загрузка webauthn.dll по явному пути System32.</p></div>
+      <div class="card"><h3>Доставка и управление</h3><p>MSI-установщик с параметром SERVERURL, .reg-шаблоны, GPO-политики в реестре, bypass-список аварийных учёток, файл-диагностика cp.log.</p></div>
+    </div>
+    <div class="card hl" style="margin-top:14px;"><p style="font-size:15px;"><b>Модель учёток:</b> пользователь Ligament и локальная Windows-учётка совпадают именем и паролем — сервер решает, достаточно ли факторов, вход физически выполняет Windows. Подмена входа невозможна.</p></div>
+    <div class="footer"><span>Ligament · Windows CP</span><span>6 / 15</span></div>
+  </div>
+</div>
+
+<!-- 7 SSO -->
+<div class="page">
+  <div class="pad">
+    <div class="headrow"><div class="kicker">SSO и каталоги</div><div class="num">07</div></div>
+    <h2>Встроенный IdP: OpenID Connect и LDAP/AD</h2>
+    <div class="grid g2">
+      <div class="card"><h3>OIDC Provider в ядре</h3><p>Discovery, JWKS, ID-токены RS256, PKCE для публичных клиентов, consent-страница, userinfo — без отдельного Keycloak. Подключение приложений за минуты из админки.</p></div>
+      <div class="card"><h3>LDAP / Active Directory</h3><p>Bind-проверка пароля в каталоге, автопровижининг с учётом лимита лицензии, синк групп/ролей/email/телефона, ограничение по группам AD, синхронизация блокировок учёток.</p></div>
+      <div class="card"><h3>Сессии и устройства</h3><p>Веб-сессии и доверенные устройства, скользящий TTL device-токенов, отзыв устройств из админки, аудит всех входов.</p></div>
+      <div class="card"><h3>Честные границы</h3><p>SAML-провайдера нет (только OIDC); SCIM-провижининга нет — синк выполняется при входе пользователя.</p></div>
+    </div>
+    <div class="footer"><span>Ligament · SSO</span><span>7 / 15</span></div>
+  </div>
+</div>
+
+<!-- 8 ЛОКАЛИЗАЦИЯ -->
+<div class="page">
+  <div class="pad">
+    <div class="headrow"><div class="kicker">Локализация</div><div class="num">08</div></div>
+    <h2>Мультиязычность: язык следует за платформой</h2>
+    <div class="grid g3" style="margin-top:4px;">
+      <div class="card"><h3>Дефолт — системный язык</h3><p>Веб — язык браузера/ОС (Accept-Language), приложение — локаль устройства, тайл Windows — язык Windows (MUI). Ручной выбор перекрывает всегда.</p></div>
+      <div class="card"><h3>Все поверхности</h3><p>Админка, страницы входа, консент, статусы и ошибки; приложение — экраны, approval-модалки, поддержка; email/SMS/Telegram — язык получателя.</p></div>
+      <div class="card"><h3>Волна 1</h3><p><b>en, es, pt-BR, de, fr, zh, tr</b> + русский. Единый словарь терминов; контракт «ключ есть во всех языках» проверяется сборкой.</p></div>
+    </div>
+    <div class="card hl" style="margin-top:14px;"><p style="font-size:15px;"><b>Для интеграций:</b> международная компания получает интерфейс на языке ОС каждого сотрудника — без настроек и без отдельных сборок под язык.</p></div>
+    <div class="footer"><span>Ligament · Локализация</span><span>8 / 15</span></div>
+  </div>
+</div>
+
+<!-- 9 ПОДДЕРЖКА -->
+<div class="page">
+  <div class="pad">
+    <div class="headrow"><div class="kicker">Сервис</div><div class="num">09</div></div>
+    <h2>Встроенная поддержка (SOS): вход решается без админа сервера</h2>
+    <div class="arch" style="margin-top:2px;">
+      <div class="box"><b>1 · Пользователь</b><span>Потерял телефон → кнопка «Обращение» прямо на экране входа (без аутентификации)</span></div>
+      <div class="arrow">→</div>
+      <div class="box"><b>2 · Оператор</b><span>Берёт заявку из очереди, вводит контрольное число с экрана пользователя</span></div>
+      <div class="arrow">→</div>
+      <div class="box"><b>3 · Сессия</b><span>Чат + WebRTC-просмотр экрана (view-only, без управления), передача файлов</span></div>
+      <div class="arrow">→</div>
+      <div class="box"><b>4 · Итог</b><span>Проблема решена, обращение закрыто — сервер не тронут</span></div>
+    </div>
+    <div class="grid g3" style="margin-top:12px;">
+      <div class="card"><h3>Защита от соц-инжиниринга</h3><p>Соединение — только по контрольному числу с экрана заявителя: максимум 3 попытки, ошибка гасит заявку. Подключиться «за чужого» нельзя.</p></div>
+      <div class="card"><h3>Категории и эскалация</h3><p>Роли операторов IT / 1С: инженер 1С не попадает в IT-обращения. Передача коллеге с сохранением истории. Аудит всех действий.</p></div>
+      <div class="card"><h3>Жёсткие рамки</h3><p>Одна активная заявка на пользователя, заявка без движения гаснет через 15 минут, сессия — не дольше 4 часов. Жизненный цикл валидирует FSM в БД.</p></div>
+    </div>
+    <div class="card hl" style="margin-top:12px;"><p style="font-size:15px;"><b>Для сервис-компаний:</b> white-label брендинг + консоль поддержки = ваша техподдержка прямо в окне входа клиента — без AnyDesk/TeamViewer и без доступа к серверу.</p></div>
+    <div class="footer"><span>Ligament · Поддержка</span><span>9 / 15</span></div>
+  </div>
+</div>
+
+<!-- 10 БЕЗОПАСНОСТЬ -->
+<div class="page">
+  <div class="pad">
+    <div class="headrow"><div class="kicker">Безопасность платформы</div><div class="num">10</div></div>
+    <h2>Инженерная база: независимый аудит, всё закрыто</h2>
+    <div class="grid g3">
+      <div class="card"><h3>Криптография</h3><p>argon2id для паролей, AES-256-GCM с AAD-привязкой, Ed25519-лицензии, constant-time сравнения, crypto/rand во всех токенах.</p></div>
+      <div class="card"><h3>Отказоупорство входа</h3><p>Rate-limit по корзинам (IP/юзер/челлендж), fail2ban с окнами и банами, per-user блокировки, расход попыток на number-matching.</p></div>
+      <div class="card"><h3>Изоляция назначений</h3><p>Коды строго по purpose, одноразовость челленджей и OIDC-кодов на уровне БД, защита от replay TOTP, изоляция каналов подтверждения.</p></div>
+      <div class="card"><h3>Аудит и наблюдаемость</h3><p>Полный журнал входов/отказов/админ-действий с ретеншном, health-check, структурные логи, диагностика Credential Provider.</p></div>
+      <div class="card"><h3>Web-защита</h3><p>Строгая CSP (рекламная — только на страницах со слотами), CSRF на всех формах, защита от open-redirect, экранирование контента.</p></div>
+      <div class="card"><h3>Независимый аудит</h3><p>15 ревьюеров по подсистемам: 2 критические уязвимости (обход 2FA через app-токен, порча restore) и ~25 важных замечаний — закрыты в релизах v0.4.70+.</p></div>
+    </div>
+    <div class="footer"><span>Ligament · Безопасность</span><span>10 / 15</span></div>
+  </div>
+</div>
+
+<!-- 11 АДМИНКА -->
+<div class="page">
+  <div class="pad">
+    <div class="headrow"><div class="kicker">Эксплуатация</div><div class="num">11</div></div>
+    <h2>Админка: всё управляется мышью, на своём языке</h2>
+    <div class="grid g3">
+      <div class="card"><h3>Пользователи и группы</h3><p>Роли, предпочтительные каналы, RADIUS-атрибуты по группам, окна доверия, блокировки, LDAP-пользователи.</p></div>
+      <div class="card"><h3>Файрвол</h3><p>Чёрные/белые списки CIDR, активные баны с остатком времени, разбан в один клик, пороги fail2ban.</p></div>
+      <div class="card"><h3>Интеграции</h3><p>SMTP, SMS-шлюзы, Telegram-бот, OIDC-клиенты, LDAP/AD, домен и шаблоны сообщений — формы с маскировкой секретов.</p></div>
+      <div class="card"><h3>Брендинг и реклама</h3><p>White-label для платных лицензий; для бесплатного тарифа — управляемые рекламные блоки и подписи в сообщениях.</p></div>
+      <div class="card"><h3>Резервное копирование</h3><p>Логический дамп с сохранением мастер-ключа, экспорт/импорт настроек без секретов, миграция между инсталляциями.</p></div>
+      <div class="card"><h3>Мониторинг</h3><p>Health-check эндпоинт, структурные логи, аудит с фильтрами, очередь обращений поддержки со счётчиками.</p></div>
+    </div>
+    <div class="footer"><span>Ligament · Эксплуатация</span><span>11 / 15</span></div>
+  </div>
+</div>
+
+<!-- 12 ЛИЦЕНЗИРОВАНИЕ -->
+<div class="page">
+  <div class="pad">
+    <div class="headrow"><div class="kicker">Коммерческая модель</div><div class="num">12</div></div>
+    <h2>Лицензирование: офлайн — и защита от копирования</h2>
+    <div class="grid g2">
+      <div class="card"><h3>Режимы сегодня</h3><p><b>Free</b> — до 5 пользователей бессрочно; <b>Demo</b> — до 30 дней по подписанному файлу; <b>Subscription</b> — до 13 месяцев + grace; <b>Perpetual</b> — бессрочная с окном обновлений. Все проверки локально, без phone-home.</p></div>
+      <div class="card"><h3>Дистрибуция</h3><p>Docker Hub (multi-arch), GitHub Releases для клиентов (MSI, RDP-пакет, APK, DMG, IPA), генерация лицензий вендором, CRL-отзыв. Генератор лицензий не попадает в клиентские сборки.</p></div>
+      <div class="card hl"><h3>Роадмап v0.4.78 — защита от копирования</h3><p>Код активации по железу (machine-id/VM-UUID) → персональная лицензия; редакции по фичам (SSO / LDAP / поддержка / доверие); отдельное Docker-приложение Licensier: выдача, реестр, отзыв. Привязка демо — галкой, старые лицензии совместимы.</p></div>
+      <div class="card"><h3>Для системных интеграторов</h3><p>White-label + SOS-консоль = готовый продукт под вашей маркой; лицензия ограничивает только число пользователей и набор фич.</p></div>
+    </div>
+    <div class="footer"><span>Ligament · Лицензирование</span><span>12 / 15</span></div>
+  </div>
+</div>
+
+<!-- 13 СРАВНЕНИЕ -->
+<div class="page">
+  <div class="pad">
+    <div class="headrow"><div class="kicker">Рынок РФ</div><div class="num">13</div></div>
+    <h2 style="margin-bottom:10px;">Сравнение с российскими аналогами</h2>
+    <table class="cmp">
+      <tr>
+        <th>Критерий</th>
+        <th class="col-lig">Ligament</th>
+        <th>Мультифактор</th>
+        <th>IDEA MFA</th>
+        <th>ViPNet IAS<br>(ИнфоТеКС)</th>
+        <th>UserGate MFA</th>
+      </tr>
+      <tr><td>Развёртывание</td><td class="col-lig yes">Полностью self-hosted, 1 контейнер</td><td class="part">Гибрид: облако + on-prem компоненты</td><td class="part">On-prem / облако вендора</td><td class="yes">On-prem</td><td class="part">On-prem, привязка к платформе UserGate</td></tr>
+      <tr><td>Бесплатный режим</td><td class="col-lig yes">До 5 юзеров бессрочно</td><td class="no">Нет (триал)</td><td class="no">Нет (триал)</td><td class="no">Нет</td><td class="no">Нет</td></tr>
+      <tr><td>Push + number matching</td><td class="col-lig yes">Да (приложение)</td><td class="yes">Да</td><td class="yes">Да</td><td class="yes">Да</td><td class="yes">Да</td></tr>
+      <tr><td>TOTP / резервные коды</td><td class="col-lig yes">Да / да</td><td class="yes">Да / да</td><td class="yes">Да / да</td><td class="yes">Да / да</td><td class="yes">Да / да</td></tr>
+      <tr><td>FIDO2 / аппаратные ключи</td><td class="col-lig yes">Да (WebAuthn, YubiKey — веб и RDP-тайл)</td><td class="yes">Да</td><td class="yes">Да</td><td class="yes">Да</td><td class="part">Зависит от версии</td></tr>
+      <tr><td>RADIUS (+push-удержание)</td><td class="col-lig yes">Да, в ядре + окно доверия per-user/group</td><td class="yes">Да (Radius Adapter, open source)</td><td class="yes">Да</td><td class="yes">Да</td><td class="yes">Да</td></tr>
+      <tr><td>Windows RDP Credential Provider</td><td class="col-lig yes">Да, number matching + FIDO2 + GPO</td><td class="yes">Да</td><td class="yes">Да</td><td class="part">Через компоненты экосистемы</td><td class="part">Ограниченно</td></tr>
+      <tr><td>SSO: OIDC</td><td class="col-lig yes">Встроенный IdP</td><td class="yes">Да (через облако)</td><td class="yes">Да</td><td class="yes">Да</td><td class="part">Через платформу</td></tr>
+      <tr><td>SSO: SAML</td><td class="col-lig no">Нет</td><td class="yes">Да</td><td class="yes">Да</td><td class="yes">Да</td><td class="part">Зависит от версии</td></tr>
+      <tr><td>Мультиязычный интерфейс</td><td class="col-lig yes">Да, язык платформы по умолчанию (8 языков)</td><td class="part">Русский / английский</td><td class="part">Русский</td><td class="part">Русский</td><td class="part">Русский</td></tr>
+      <tr><td>White-label + консоль поддержки в комплекте</td><td class="col-lig yes">Да (WebRTC-консоль)</td><td class="no">Нет</td><td class="no">Нет</td><td class="no">Нет</td><td class="no">Нет</td></tr>
+      <tr><td>Сертификация ФСТЭК/ФСБ</td><td class="col-lig no">Нет</td><td class="part">PCI DSS; ФСТЭК — по отдельным продуктам</td><td class="yes">Есть (по ряду компонентов)</td><td class="yes">Есть (ИнфоТеКС)</td><td class="yes">Есть (UserGate)</td></tr>
+    </table>
+    <div class="footer"><span>Ligament · Сравнение</span><span>13 / 15</span></div>
+  </div>
+</div>
+
+<!-- 14 ПОЗИЦИОНИРОВАНИЕ -->
+<div class="page">
+  <div class="pad">
+    <div class="headrow"><div class="kicker">Позиционирование</div><div class="num">14</div></div>
+    <h2>Где Ligament выигрывает — и где нет</h2>
+    <div class="grid g2">
+      <div class="card hl">
+        <h3>Сильные стороны</h3>
+        <ul class="clean">
+          <li><b>Полный self-hosted без облака вендора</b> — изолированный контур из одного контейнера.</li>
+          <li><b>Free-тариф до 5 пользователей</b> — рабочий продукт, а не триал.</li>
+          <li><b>Wi-Fi/VPN/RDP из коробки</b> — окно доверия per-user/group, number matching на тайле, FIDO2, VSA, Accounting.</li>
+          <li><b>Встроенные OIDC IdP и support-консоль</b> — не нужно докупать Keycloak и remote-assistant.</li>
+          <li><b>Мультиязычность</b> — интерфейс на языке ОС пользователя, 8 языков.</li>
+          <li><b>White-label и офлайн-лицензирование</b> — продукт под вашей маркой, без phone-home.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Честные ограничения</h3>
+        <ul class="clean">
+          <li><b>Нет сертификатов ФСТЭК/ФСБ</b> — для гос-сектора и КИИ обязательны сертифицированные аналоги (IDEA MFA, ViPNet IAS, UserGate).</li>
+          <li><b>Нет SAML и SCIM</b> — интеграция с IdP, где нет OIDC, не покрывается.</li>
+          <li><b>Один инстанс</b> — отказоустойчивость средствами БД, а не кластер приложения.</li>
+          <li><b>Мобильные приложения вне сторов</b> — APK/DMG/IPA распространяются из GitHub Releases.</li>
+          <li><b>Молодой продукт</b> — библиотека готовых интеграций меньше, чем у Мультифактора.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="card" style="margin-top:12px;"><p style="font-size:15px;"><b>Итог:</b> Ligament закрывает нишу «нужен свой MFA без облака и без enterprise-бюджета» — SMB, сервис-компании, инфраструктура на любом RADIUS-оборудовании, изолированные контуры. Enterprise/гос — за сертифицированными аналогами.</p></div>
+    <div class="footer"><span>Ligament · Позиционирование</span><span>14 / 15</span></div>
+  </div>
+</div>
+
+<!-- 15 ИТОГ -->
+<div class="page dark">
+  <div class="cover-wrap">
+    <div class="cover-center">
+      <div class="kicker">Итог</div>
+      <h1 style="font-size:52px;">Ligament — связка,<br>которая держит доступ</h1>
+      <div class="sub" style="max-width:840px;margin-top:20px;">Сервер + приложение + Windows CP + SSO + консоль поддержки в одном self-hosted пакете.<br>Бесплатно для 5 пользователей — ставьте и проверяйте на своей сети за вечер.</div>
+      <div style="margin-top:36px;">
+        <span class="pill i">docker: aligorov/ligament_2fa</span>
+        <span class="pill i">demo: до 30 дней по файлу</span>
+        <span class="pill i">docs: в репозитории</span>
+      </div>
+    </div>
+    <div class="cover-foot"><span>ligam.org</span><span>Спасибо за внимание · 2026</span></div>
+  </div>
+</div>
+
+</body>
+</html>
