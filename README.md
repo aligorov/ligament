@@ -303,8 +303,23 @@ Official client packages and installers are published in the [**ligament-apps/re
 | **Ligament Relay Agent** | Linux (Docker, Binary), Windows Server | Docker image, `.zip` | Peripheral branch node: offline auth cache & isolated subnet proxy |
 | **Ligament Authenticator** | Android | `.apk` | Mobile client with Push, number matching, and biometrics |
 | **Ligament Authenticator** | Windows | `.exe`, `.zip` | System tray desktop client with instant push alerts |
-| **Ligament Authenticator** | macOS | `.dmg` | Native application for Apple Silicon and Intel |
-| **Ligament Authenticator** | Linux | `.tar.gz` | Graphical client for Linux desktop workstations |
+| **Ligament Authenticator** | Linux (Astra Linux, RED OS, Alt Linux, Ubuntu, Debian, RHEL) | `.deb`, `.rpm`, `.tar.gz` | Graphical desktop client with push alerts, number matching, and system tray |
+
+### 🐧 Linux Enterprise & Russian OS Deployment
+
+Ligament Authenticator is packaged and verified for major enterprise Linux distributions and Russian operating systems:
+
+| Distribution | Package Type | Architecture | Installation Command |
+|---|---|---|---|
+| **Astra Linux** (Special Edition 1.7 / CE) | `.deb` | `amd64` | `sudo dpkg -i ligament-authenticator_*.deb || sudo apt-get install -f` |
+| **RED OS / РЕД ОС** (7.3, 8) | `.rpm` | `x86_64` | `sudo dnf install ./ligament-authenticator-*.rpm` *(or `sudo rpm -ivh`)* |
+| **Alt Linux / Альт Рабочая станция** (p9, p10) | `.rpm` | `x86_64` | `sudo epm install ./ligament-authenticator-*.rpm` *(or `sudo apt-get install ./...`)* |
+| **Ubuntu / Debian / Linux Mint** | `.deb` | `amd64` | `sudo apt install ./ligament-authenticator_*.deb` |
+| **RHEL / Rocky / AlmaLinux / Fedora** | `.rpm` | `x86_64` | `sudo dnf install ./ligament-authenticator-*.rpm` |
+| **Universal Portable (any distro)** | `.tar.gz` | `x86_64` | `tar -xzf Ligament-2FA-Linux-x86_64.tar.gz && sudo ./ligament-authenticator/install.sh` |
+
+> [!TIP]
+> All Linux packages automatically create system application launcher entries (`ligament-authenticator.desktop`), install high-resolution icons into `/usr/share/icons/hicolor`, register the `/usr/bin/ligament-authenticator` executable symlink, and support custom protocol handlers (`x-scheme-handler/ligament`). For unprivileged environments, `./install.sh` inside the `.tar.gz` archive can be executed without `sudo` into `~/.local`.
 
 ---
 

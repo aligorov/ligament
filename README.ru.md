@@ -297,9 +297,23 @@ cat admin_password.txt
 | **Windows Credential Provider** | Windows 10, 11, Server 2016–2025 | `.msi`, `.zip` | Модуль для LogonUI: 2FA на экране RDP/консоли с Auto-Logon |
 | **Ligament Relay Agent** | Linux (Docker, Binary), Windows Server | Docker-образ, `.zip` | Периферийный агент филиала: офлайн-кэш 2FA и прокси изолированных сетей |
 | **Ligament Authenticator** | Android | `.apk` | Мобильное приложение с Push, контрольным числом и биометрией |
-| **Ligament Authenticator** | Windows | `.exe`, `.zip` | Десктопный клиент в трее с мгновенными Push-уведомлениями |
-| **Ligament Authenticator** | macOS | `.dmg` | Нативное приложение для Apple Silicon и Intel |
-| **Ligament Authenticator** | Linux | `.tar.gz` | Графический клиент для Linux-десктопов |
+| **Ligament Authenticator** | Linux (Astra Linux, РЕД ОС, Альт Линукс, Ubuntu, Debian, RHEL) | `.deb`, `.rpm`, `.tar.gz` | Графический клиент для рабочих станций Linux (Astra, РЕД ОС, Alt, Ubuntu, RHEL) |
+
+### 🐧 Поддержка российских операционных систем и Linux
+
+Клиент **Ligament Authenticator** адаптирован и протестирован для российских корпоративных дистрибутивов и популярных сборок Linux:
+
+| Операционная система | Тип пакета | Архитектура | Команда установки |
+|---|---|---|---|
+| **Astra Linux** (Special Edition 1.7 / CE) | `.deb` | `amd64` | `sudo dpkg -i ligament-authenticator_*.deb || sudo apt-get install -f` |
+| **РЕД ОС** (версии 7.3, 8) | `.rpm` | `x86_64` | `sudo dnf install ./ligament-authenticator-*.rpm` *(или `sudo rpm -ivh`)* |
+| **Альт Рабочая станция / СПТ** (p9, p10) | `.rpm` | `x86_64` | `sudo epm install ./ligament-authenticator-*.rpm` *(или `sudo apt-get install ./...`)* |
+| **Ubuntu / Debian / Linux Mint** | `.deb` | `amd64` | `sudo apt install ./ligament-authenticator_*.deb` |
+| **RHEL / Rocky / AlmaLinux / Fedora** | `.rpm` | `x86_64` | `sudo dnf install ./ligament-authenticator-*.rpm` |
+| **Универсальный архив (любой Linux)** | `.tar.gz` | `x86_64` | `tar -xzf Ligament-2FA-Linux-x86_64.tar.gz && sudo ./ligament-authenticator/install.sh` |
+
+> [!TIP]
+> Все пакеты автоматически регистрируют ярлык приложения с русской локализацией в меню «Пуск» Fly Desktop (Astra Linux) и MATE (РЕД ОС), прописывают исполняемый файл в `/usr/bin/ligament-authenticator`, устанавливают системные иконки в `/usr/share/icons/hicolor` и регистрируют протокол `x-scheme-handler/ligament`. Для установки без прав администратора переносимый архив `.tar.gz` поддерживает установку в домашнюю папку пользователя (`./install.sh`).
 
 ---
 
