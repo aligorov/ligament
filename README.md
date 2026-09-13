@@ -140,7 +140,7 @@ flowchart TD
 | **Price** | **$0 (forever)** | **$0 (30 days)** | **$1** / user / month | **$2.5** / user one-time |
 | **Active User Limit** | Up to **5 users** | **Unlimited** | Per purchased seats | Per purchased seats |
 | **License Duration** | Lifetime | 30 days from launch | **3, 6, or 13 months** | **Lifetime (forever)** |
-| **Ligament Relay Nodes** | ❌ 0 nodes (locked) | ✅ Included | **$200** / node / term | **$500** / node one-time |
+| **Branch Office Nodes (Ligament Relay)** | ❌ **0 nodes (locked)** | ✅ **Included (unlimited)** | **$200** / node / term | **$500** / node one-time |
 | **Windows Credential Provider (RDP + Auto-Logon)** | ✅ Yes (up to 5 users) | ✅ Yes (unlimited) | ✅ Yes | ✅ Yes |
 | **Number Matching + QR Passkeys on Tile** | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes |
 | **All Factors: Push, TOTP, Telegram, Passkeys, YubiKey** | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes |
@@ -148,12 +148,31 @@ flowchart TD
 | **RADIUS Server (Wi-Fi 802.1X + VPN)** | ✅ Yes (standard 2FA) | ✅ Yes (full) | ✅ Yes (full) | ✅ Yes (full) |
 | **Device Trust Window in RADIUS (`trust`)** | ❌ No (2FA on every login) | ✅ Yes (up to N days/hours) | ✅ Yes | ✅ Yes |
 | **Single Sign-On (OIDC IdP) (`sso`)** | ❌ No (403 Forbidden) | ✅ Yes (unlimited) | ✅ Yes | ✅ Yes |
-| **Active Directory / LDAP Sync (`ldap`)** | ❌ No | ✅ Yes | ✅ Yes | ✅ Yes |
-| **SOS Remote Assistance / WebRTC (`support`)** | ❌ No | ✅ Yes | ✅ Yes | ✅ Yes |
+| **Active Directory / LDAP Sync (`ldap`)** | ❌ No (403 Forbidden) | ✅ Yes | ✅ Yes | ✅ Yes |
+| **Branch Relay Offline Nodes (`relay`)** | ❌ No (0 nodes allowed) | ✅ Yes (unlimited trial) | **$200** / node / term | **$500** / node one-time |
+| **SOS Remote Assistance / WebRTC (`support`)** | ❌ No (403 Forbidden) | ✅ Yes | ✅ Yes | ✅ Yes |
 | **Company Branding & White-Label (`white-label`)** | ❌ No | ✅ Yes | ✅ Yes | ✅ Yes |
 | **Fail2ban, CIDR Firewall & Audit Logs** | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes |
 | **User Self-Service Portal (`/me`)** | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes |
 | **Version Updates & Vendor Support** | Community | Full trial support | ✅ Included in subscription | ✅ Base version updates |
+
+---
+
+### 🥊 Competitor Comparison
+
+| Capability | 🛡️ **Ligament** | Multifactor | IDEA MFA | ViPNet IAS | UserGate MFA |
+|---|---|---|---|---|---|
+| **Architecture** | **100% Self-Hosted (1 Docker)** | Hybrid (Vendor Cloud + On-Prem) | On-Prem / Cloud | On-Prem | On-Prem (UserGate hardware) |
+| **Free Tier** | **Up to 5 users forever** | None (Trial only) | None (Trial only) | None | None |
+| **Windows RDP 2FA** | **Yes (Auto-Logon + QR)** | Yes (Manual click) | Yes | Ecosystem components | Limited |
+| **Number Matching on Tile** | **Yes (Direct on screen)** | Yes | Yes | Yes | Yes |
+| **Branch Office Relay (Offline Cache)** | **Yes (Ligament Relay)** | Partial (Cloud required) | Yes (Distributed) | Yes (Complex PKI) | Central cluster only |
+| **Push + Telegram Bot** | **Yes (Both native)** | Yes (Telegram/App) | Yes | Yes | Yes |
+| **FIDO2 / Passkeys / YubiKey** | **Yes (Web & Windows Tile)** | Yes | Yes | Yes | Partial |
+| **Built-in OIDC SSO IdP** | **Yes (Self-Hosted in core)** | Cloud-mediated | Yes | Yes | Via platform |
+| **RADIUS + Device Trust** | **Yes (Per-user/group)** | Radius Adapter | Yes | Yes | Yes |
+| **Integrated SOS Support Console** | **Yes (WebRTC on login tile)** | None | None | None | None |
+| **Multi-Language Support** | **8 languages out-of-the-box** | RU / EN | RU | RU | RU |
 
 ---
 
@@ -281,6 +300,7 @@ Official client packages and installers are published in the [**ligament-apps/re
 | Component | Platform | Format | Purpose |
 |---|---|---|---|
 | **Windows Credential Provider** | Windows 10, 11, Server 2016–2025 | `.msi`, `.zip` | LogonUI module: RDP/Local 2FA with Auto-Logon |
+| **Ligament Relay Agent** | Linux (Docker, Binary), Windows Server | Docker image, `.zip` | Peripheral branch node: offline auth cache & isolated subnet proxy |
 | **Ligament Authenticator** | Android | `.apk` | Mobile client with Push, number matching, and biometrics |
 | **Ligament Authenticator** | Windows | `.exe`, `.zip` | System tray desktop client with instant push alerts |
 | **Ligament Authenticator** | macOS | `.dmg` | Native application for Apple Silicon and Intel |
