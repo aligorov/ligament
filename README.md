@@ -149,7 +149,7 @@ flowchart LR
 | Edition | For whom | Price | Users | Term |
 |---|---|---|---|---|
 | 🟢 **Free** | Homelabs, micro-teams, protecting admin accounts | **$0 forever** | up to 5 | Unlimited |
-| 🟡 **Demo** | Full evaluation of every enterprise feature | $0 | Unlimited | 30 days → gracefully falls back to Free |
+| 🟡 **Demo** | Full evaluation of every enterprise feature | $0 | Unlimited | 30 days, bound to your server hardware → gracefully falls back to Free |
 | 🔵 **Subscription** | Production | **$1** / user / month | per seats | 3 / 6 / **13 months (13th free)** |
 | 🟣 **Perpetual** | Production, buy once | **$2.5** / user one-time | per seats | Forever |
 
@@ -242,7 +242,7 @@ flowchart LR
 - 🔒 **User Capacity**: Strictly limited to 5 active users.
 
 ### 🟡 What is included in the 30-Day Demo (Trial):
-- Automatically activated on **first launch** without requiring license keys or vendor registration.
+- Issued **on request in one email**: send us your server's **Activation Code** (visible in the admin console) — you get a signed demo file in reply. No payment, no account registration. The file is **cryptographically bound to that exact server hardware** and can't be reused elsewhere.
 - **100% of Enterprise features unlocked**: OIDC SSO, Active Directory Sync, Device Trust Windows, SOS Assistance, Relay Nodes, and White-Labeling.
 - **Unlimited Users**: Test across your entire network with 100, 500, or 1000+ employees.
 - **Graceful degradation**: After 30 days, the server automatically transitions to Free mode (5 users). Existing logins **are never abruptly blocked**, while adding users beyond 5 requires a license.
