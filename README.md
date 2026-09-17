@@ -154,28 +154,46 @@ flowchart TD
 
 ## 📊 Pricing & Editions Comparison
 
-| Feature / Parameter | 🟢 Free (Forever) | 🟡 Demo (30-Day Trial) | 🔵 Subscription | 🟣 Perpetual (Lifetime) |
+### 🧭 Which edition is right for you?
+
+| Edition | For whom | Price | Users | Term |
 |---|---|---|---|---|
-| **Price** | **$0 (forever)** | **$0 (30 days)** | **$1** / user / month | **$2.5** / user one-time |
-| **Active User Limit** | Up to **5 users** | **Unlimited** | Per purchased seats | Per purchased seats |
-| **License Duration** | Lifetime | 30 days from launch | **3, 6, or 13 months** | **Lifetime (forever)** |
-| **Branch Office Nodes (Ligament Relay)** | ❌ **0 nodes (locked)** | ✅ **Included (unlimited)** | **$200** / node / term | **$500** / node one-time |
-| **Windows Credential Provider (RDP + Auto-Logon)** | ✅ Yes (up to 5 users) | ✅ Yes (unlimited) | ✅ Yes | ✅ Yes |
-| **Number Matching + QR Passkeys on Tile** | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes |
-| **All Factors: Push, TOTP, Telegram, Passkeys, YubiKey** | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes |
-| **Backup Codes, Email & SMS Gateways** | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes |
-| **RADIUS Server (Wi-Fi 802.1X + VPN)** | ✅ Yes (standard 2FA) | ✅ Yes (full) | ✅ Yes (full) | ✅ Yes (full) |
-| **Device Trust Window in RADIUS (`trust`)** | ❌ No (2FA on every login) | ✅ Yes (up to N days/hours) | ✅ Yes | ✅ Yes |
-| **Single Sign-On (OIDC IdP) (`sso`)** | ❌ No (403 Forbidden) | ✅ Yes (unlimited) | ✅ Yes | ✅ Yes |
-| **Active Directory / LDAP Sync (`ldap`)** | ❌ No (403 Forbidden) | ✅ Yes | ✅ Yes | ✅ Yes |
-| **Branch Relay Offline Nodes (`relay`)** | ❌ No (0 nodes allowed) | ✅ Yes (unlimited trial) | **$200** / node / term | **$500** / node one-time |
-| **Web-SSH Bastion (`bastion`)** | ❌ No | ✅ Yes | ✅ Yes | ✅ Yes |
-| **SAML IdP + SIEM connector (`siem`)** | ❌ No | ✅ Yes | ✅ Yes | ✅ Yes |
-| **SOS Remote Assistance / WebRTC (`support`)** | ❌ No (403 Forbidden) | ✅ Yes | ✅ Yes | ✅ Yes |
-| **Company Branding & White-Label (`white-label`)** | ❌ No | ✅ Yes | ✅ Yes | ✅ Yes |
-| **Fail2ban, CIDR Firewall & Audit Logs** | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes |
-| **User Self-Service Portal (`/me`)** | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes |
-| **Version Updates & Vendor Support** | Community | Full trial support | ✅ Included in subscription | ✅ Base version updates |
+| 🟢 **Free** | Homelabs, micro-teams, protecting admin accounts | **$0 forever** | up to 5 | Unlimited |
+| 🟡 **Demo** | Full evaluation of every enterprise feature | $0 | Unlimited | 30 days → gracefully falls back to Free |
+| 🔵 **Subscription** | Production | **$1** / user / month | per seats | 3 / 6 / **13 months (13th free)** |
+| 🟣 **Perpetual** | Production, buy once | **$2.5** / user one-time | per seats | Forever |
+
+### ✅ Included in every edition (even Free)
+
+<details open>
+<summary><b>All 2FA factors, Windows logon, bots and the entire core — no paywalls on security basics</b></summary>
+
+- 📲 **Push with Number Matching** (mobile/desktop apps + **PWA with Web Push on iOS**)
+- 🔑 **Passkeys / WebAuthn / YubiKey**, TOTP & HOTP, backup codes
+- ✉️ **Email / SMS / Voice (TTS)** code delivery, corporate-messenger bots (Telegram, eXpress, MAX, VK Teams, Slack, Mattermost, Discord, VK) with self-service cabinet `/menu`
+- 🪟 **Windows Credential Provider**: RDP & console logon, Auto-Logon, QR passkeys, Fail-Open/Close policies, GPO/ADMX deployment
+- 📡 **RADIUS server**: VPN + Wi-Fi 802.1X (PAP, EAP-TTLS, PEAP), accounting, MikroTik config generator
+- 🛡️ CIDR firewall & fail2ban, immutable audit + CSV export, incident report
+- 🔐 **MFA proxy (forward-auth)** for nginx/Traefik, roles (admin/operator/auditor), API tokens, impersonation & break-glass
+- 📊 Prometheus `/metrics`, health endpoint, event webhooks, admin notifications
+
+</details>
+
+### 🚀 Enterprise add-ons *(unlocked in Demo & paid editions)*
+
+| Feature | 🟢 Free | 🟡 Demo | 🔵 Subscription | 🟣 Perpetual |
+|---|:---:|:---:|:---:|:---:|
+| **SSO Identity Provider — OIDC + SAML** (`sso`) | ❌ | ✅ | ✅ | ✅ |
+| **Active Directory / LDAP sync** (`ldap`) | ❌ | ✅ | ✅ | ✅ |
+| **RADIUS Device Trust Window** (`trust`) | ❌ 2FA every login | ✅ | ✅ | ✅ |
+| **Geo-IP access policies** (`geo`) | ❌ | ✅ | ✅ | ✅ |
+| **SOS Remote Assistance** (`support`) | ❌ | ✅ | ✅ | ✅ |
+| **Web-SSH Bastion** (`bastion`) | ❌ | ✅ | ✅ | ✅ |
+| **SIEM connector** (`siem`) | ❌ | ✅ | ✅ | ✅ |
+| **Company Branding / White-Label** | ❌ | ✅ | ✅ | ✅ |
+| **Branch Relay nodes** (`relay`) | ❌ 0 nodes | ✅ unlimited | **$200** / node / term | **$500** / node one-time |
+
+> 💡 **Demo = 100% of features, unlimited users, zero registration.** After 30 days it degrades gracefully to Free — existing logins are never blocked.
 
 ---
 
