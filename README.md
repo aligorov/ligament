@@ -54,7 +54,8 @@ flowchart TD
     subgraph LigamentCore["🛡️ Ligament Core Server (Self-Hosted Docker)"]
         CP["🪟 Windows Credential Provider (Auto-Logon)"]
         RAD["📡 RADIUS Engine (PAP / EAP / Accounting)"]
-        OIDC["🔑 OIDC / SSO Identity Provider"]
+        OIDC["🔑 OIDC / SAML IdP + MFA Proxy"]
+        BAST["🖥️ Web-SSH Bastion"]
         AUTH["⚙️ Core Auth & Policy Engine"]
         FSM["🛡️ Fail2ban / Audit / CIDR Firewall"]
         REL["⚡ Relay Hub (Branch Offices)"]
@@ -99,8 +100,10 @@ flowchart TD
 - **Device Trust Window** *(Demo & Commercial)*: Configurable grace period (e.g. 8 hours or 7 days) during which verified devices can reconnect without re-prompting for 2FA.
 - **Vendor-Specific Attributes (VSA)**: Dynamic authorization and group attribute assignment for network access control.
 
-### 3. 🔑 Single Sign-On (OIDC / SSO Identity Provider) *(Demo & Commercial)*
+### 3. 🔑 Single Sign-On (OIDC + SAML IdP) & MFA Proxy *(Demo & Commercial)*
 - **Built-in OpenID Connect Provider**: Complete identity provider capabilities without requiring a heavyweight external Keycloak instance.
+- **Built-in SAML 2.0 IdP**: Sign internal apps with RSA-SHA256 assertions (POST-binding) — for services without OIDC support.
+- **MFA Proxy (forward-auth)**: Protect **any** web service in one line — nginx `auth_request` / Traefik `forwardAuth` call Ligament, authenticated users get `X-Auth-User`/`X-Auth-Role` headers, guests are redirected to login. Your existing apps get MFA without code changes.
 - **Standards Compliant**: Discovery (`/.well-known/openid-configuration`), JWKS (RS256), PKCE (RFC 7636) for mobile and single-page apps.
 - **Application Catalog**: Built-in Launchpad portal and user consent screens.
 - **Seamless Integration**: Ready-to-use protection for Nextcloud, GitLab, 1C:Enterprise, Proxmox VE, Grafana, Portainer, Zabbix, BookStack, and custom enterprise web portals.
@@ -119,13 +122,29 @@ flowchart TD
 | **TOTP Codes** | Time-based OTP generator (RFC 6238) | Google Authenticator, 2FAS, Microsoft Authenticator, Yandex Key |
 | **Backup Codes** | One-time scratch recovery codes | Emergency access recovery if primary device is unavailable |
 | **Email & SMS** | One-time codes delivered via email or SMS | Configurable multi-language templates, pre-configured SMS gateways |
+| **Voice Calls (TTS)** | Code delivered by phone call | For users without smartphones / poor eyesight |
+| **HOTP** | Counter-based OTP (RFC 4226) | Hardware tokens and desktop authenticators |
+| **PWA Authenticator** | Browser app `/app` — install to Home Screen | Web Push on iOS (no App Store needed), TOTP, passkeys, SOS |
+| **Corporate messengers** | eXpress, MAX, VK Teams, Slack, Mattermost, Discord, VK | Approval buttons + full self-service cabinet via `/menu` (devices, sessions, history) |
 
 ### 6. 🆘 Integrated Remote Assistance (SOS Console) *(Demo & Commercial)*
 - Direct help request button located directly on the Windows login screen (accessible without logging in).
 - Social engineering defense: Remote engineer connects only by matching a one-time visual code displayed on the user's screen.
 - Browser-based WebRTC screen viewing (view-only), chat, and file exchange without third-party software (AnyDesk, TeamViewer).
 
-### 7. 🛡️ Security Hardening & Zero-Trust
+### 7. 🖥️ Web-SSH Bastion *(Demo & Commercial)*
+- Admins/operators connect to network equipment and servers **through the browser** — Ligament becomes the single entry point: SSO of Ligament itself + 2FA, per-user ACL to targets, host-key TOFU pinning.
+- Session recording (output-only), 30-second access re-validation, brute-force limits per user+target. No VPN/jump-host software for engineers — just a browser.
+
+### 8. 🛡️ Security Hardening, Roles & Monitoring
+- **Cryptographic Primitives**: Argon2id for password hashing, AES-256-GCM with AAD for database secrets, Ed25519 for license signatures, constant-time comparisons.
+- **Built-in CIDR Firewall & Fail2ban**: IP rate limiting, CIDR whitelists/blacklists, automatic temporary bans on brute-force attempts.
+- **Adaptive Policies**: per-group required/denied factors (e.g. «admins — passkey only»), time windows («office hours»), Geo-IP allow/deny lists.
+- **Roles & API Tokens**: admin / operator / auditor; API tokens with fine-grained scopes. **Impersonation** with audit trail and one-time **break-glass** recovery codes.
+- **Monitoring**: Prometheus `/metrics`, health endpoint with build version, SIEM connector, event webhooks; admin notifications (license/expiring certs/fail spikes).
+- **Compliance-ready Audit**: immutable log, CSV export, printable **incident report** (timeline + summary) for regulators/ISB.
+- **Mandatory 2FA Policy**: Forced user onboarding preventing users from bypassing or deleting their only 2FA factor.
+- **Multi-language Support**: Automatic adaptation to the client's OS locale (8 languages: English, Russian, German, French, Spanish, Portuguese, Turkish, Chinese).
 - **Cryptographic Primitives**: Argon2id for password hashing, AES-256-GCM with AAD for database secrets, Ed25519 for license signatures, constant-time comparisons.
 - **Built-in CIDR Firewall & Fail2ban**: IP rate limiting, CIDR whitelists/blacklists, automatic temporary bans on brute-force attempts.
 - **Mandatory 2FA Policy**: Forced user onboarding preventing users from bypassing or deleting their only 2FA factor.
@@ -150,6 +169,8 @@ flowchart TD
 | **Single Sign-On (OIDC IdP) (`sso`)** | ❌ No (403 Forbidden) | ✅ Yes (unlimited) | ✅ Yes | ✅ Yes |
 | **Active Directory / LDAP Sync (`ldap`)** | ❌ No (403 Forbidden) | ✅ Yes | ✅ Yes | ✅ Yes |
 | **Branch Relay Offline Nodes (`relay`)** | ❌ No (0 nodes allowed) | ✅ Yes (unlimited trial) | **$200** / node / term | **$500** / node one-time |
+| **Web-SSH Bastion (`bastion`)** | ❌ No | ✅ Yes | ✅ Yes | ✅ Yes |
+| **SAML IdP + SIEM connector (`siem`)** | ❌ No | ✅ Yes | ✅ Yes | ✅ Yes |
 | **SOS Remote Assistance / WebRTC (`support`)** | ❌ No (403 Forbidden) | ✅ Yes | ✅ Yes | ✅ Yes |
 | **Company Branding & White-Label (`white-label`)** | ❌ No | ✅ Yes | ✅ Yes | ✅ Yes |
 | **Fail2ban, CIDR Firewall & Audit Logs** | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes |
