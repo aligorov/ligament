@@ -35,6 +35,7 @@ Ligament seamlessly unifies your entire IT infrastructure under a single securit
 - 🌐 **Network Infrastructure & VPNs (MikroTik, Cisco, Fortinet, UniFi, OpenVPN, WireGuard)**
 - 🔑 **Internal Web Applications via Single Sign-On (OpenID Connect IdP)**
 - 🏢 **Branch Offices and Isolated Subnets via Ligament Relay Nodes**
+- 📣 **Employee Notifications — Notification Gateway API with verified contacts (messengers, SMS, Email, Voice)**
 - 📱 **Employee Workstations & Mobile Devices (iOS, Android, Windows, macOS, Linux)**
 
 > 🔒 **Secrets never leave your perimeter.** All databases, user credentials, secrets, audit logs, and master encryption keys remain exclusively on your dedicated servers. The platform has zero dependencies on external cloud vendors and operates reliably even in air-gapped environments without internet access.
@@ -102,6 +103,7 @@ flowchart LR
 - **Branch Architecture**: Deploy lightweight Relay agents to remote offices, satellite branches, or isolated DMZ zones.
 - **Offline Resilience**: Local authentication cache preserves login capabilities during WAN or internet outages.
 - **Encrypted Tunnels**: Persistent, encrypted WebSocket connection with automated user credential sync.
+- **Bastion Tunneling**: The Relay node carries Web-SSH bastion sessions to routers and servers of its local branch network as an encrypted "blind pipe" — isolated branch LANs become reachable from the core without VPN, while the Relay itself cannot read the traffic.
 
 ### 5. 📲 Full Spectrum of Verification Factors
 | Factor | Description | Highlights |
@@ -125,18 +127,23 @@ flowchart LR
 ### 7. 🖥️ Web-SSH Bastion *(Demo & Commercial)*
 - Admins/operators connect to network equipment and servers **through the browser** — Ligament becomes the single entry point: SSO of Ligament itself + 2FA, per-user ACL to targets, host-key TOFU pinning.
 - Session recording (output-only), 30-second access re-validation, brute-force limits per user+target. No VPN/jump-host software for engineers — just a browser.
+- **Branch LANs via Relay**: a target can be attached to a branch Relay node — SSH sessions are tunneled through it to devices in isolated office networks that are unreachable from the datacenter directly.
 
-### 8. 🛡️ Security Hardening, Roles & Monitoring
+### 8. 📣 Notification Gateway & Verified Contacts *(Demo & Commercial)*
+- **Ligament as the notification provider for your infrastructure**: a single REST call (`POST /api/v1/notify`) lets monitoring, ITSM and business systems deliver messages to employees through the channels they already use — Telegram, eXpress, MAX, VK Teams, Slack, Mattermost, Discord, VK, Email, SMS and Voice.
+- **Verified Contacts**: a delivery endpoint is bound to a user only after proof of ownership (messenger bot onboarding, confirmed email/phone) — API callers can never send to arbitrary addresses, only to the employee's verified contacts.
+- **User Consent**: each employee controls which of their channels may receive gateway notifications; consent state is stored server-side.
+- **Dispatcher & Delivery Log**: one API call fans out across all enabled channels of the recipient; every attempt is recorded in an immutable notification log (who sent, to whom, via which channel, delivery status) right in the admin console.
+- **Secure by default**: works with scoped API tokens and inherits the CIDR firewall, fail2ban and the full audit trail.
+
+### 9. 🛡️ Security Hardening, Roles & Monitoring
 - **Cryptographic Primitives**: Argon2id for password hashing, AES-256-GCM with AAD for database secrets, Ed25519 for license signatures, constant-time comparisons.
 - **Built-in CIDR Firewall & Fail2ban**: IP rate limiting, CIDR whitelists/blacklists, automatic temporary bans on brute-force attempts.
 - **Adaptive Policies**: per-group required/denied factors (e.g. «admins — passkey only»), time windows («office hours»), Geo-IP allow/deny lists.
 - **Roles & API Tokens**: admin / operator / auditor; API tokens with fine-grained scopes. **Impersonation** with audit trail and one-time **break-glass** recovery codes.
 - **Monitoring**: Prometheus `/metrics`, health endpoint with build version, SIEM connector, event webhooks; admin notifications (license/expiring certs/fail spikes).
 - **Compliance-ready Audit**: immutable log, CSV export, printable **incident report** (timeline + summary) for regulators/ISB.
-- **Mandatory 2FA Policy**: Forced user onboarding preventing users from bypassing or deleting their only 2FA factor.
-- **Multi-language Support**: Automatic adaptation to the client's OS locale (8 languages: English, Russian, German, French, Spanish, Portuguese, Turkish, Chinese).
-- **Cryptographic Primitives**: Argon2id for password hashing, AES-256-GCM with AAD for database secrets, Ed25519 for license signatures, constant-time comparisons.
-- **Built-in CIDR Firewall & Fail2ban**: IP rate limiting, CIDR whitelists/blacklists, automatic temporary bans on brute-force attempts.
+- **LAN IP Awareness**: logins capture both external and internal (office subnet) IP — visible in login notifications, push cards, audit UI/CSV and the incident report, so "from home" vs "from the office LAN" is always distinguishable.
 - **Mandatory 2FA Policy**: Forced user onboarding preventing users from bypassing or deleting their only 2FA factor.
 - **Multi-language Support**: Automatic adaptation to the client's OS locale (8 languages: English, Russian, German, French, Spanish, Portuguese, Turkish, Chinese).
 
@@ -180,6 +187,7 @@ flowchart LR
 | **SOS Remote Assistance** (`support`) | ❌ | ✅ | ✅ | ✅ |
 | **Web-SSH Bastion** (`bastion`) | ❌ | ✅ | ✅ | ✅ |
 | **SIEM connector** (`siem`) | ❌ | ✅ | ✅ | ✅ |
+| **Notification Gateway + Verified Contacts** (`notify`) | ❌ | ✅ | ✅ | ✅ |
 | **Company Branding / White-Label** | ❌ | ✅ | ✅ | ✅ |
 | **Branch Relay nodes** (`relay`) | ❌ 0 nodes | ✅ unlimited | **$200** / node / term | **$500** / node one-time |
 
@@ -237,13 +245,17 @@ flowchart LR
 - 🔒 **Active Directory / LDAP Sync (`ldap`)**: Automated directory synchronization and AD password verification are disabled.
 - 🔒 **RADIUS Device Trust Window (`trust`)**: Verified devices cannot skip 2FA for N days/hours.
 - 🔒 **SOS Remote Assistance (`support`)**: Remote WebRTC assistance console on the login screen is disabled.
+- 🔒 **Geo-IP Policies (`geo`)**: Geo-IP allow/deny login rules are disabled.
+- 🔒 **Web-SSH Bastion (`bastion`)**: Browser SSH console is disabled.
+- 🔒 **SIEM Connector (`siem`)**: Export to external SIEM is disabled.
+- 🔒 **Notification Gateway (`notify`)**: External systems cannot send messages to employees via verified contacts.
 - 🔒 **Branch Relay Nodes (`relay`)**: Remote branch office nodes are blocked (0 nodes permitted).
 - 🔒 **White-Label (`white-label`)**: Vendor branding cannot be customized.
 - 🔒 **User Capacity**: Strictly limited to 5 active users.
 
 ### 🟡 What is included in the 30-Day Demo (Trial):
 - Issued **on request in one email**: send us your server's **Activation Code** (visible in the admin console) — you get a signed demo file in reply. No payment, no account registration. The file is **cryptographically bound to that exact server hardware** and can't be reused elsewhere.
-- **100% of Enterprise features unlocked**: OIDC SSO, Active Directory Sync, Device Trust Windows, SOS Assistance, Relay Nodes, and White-Labeling.
+- **100% of Enterprise features unlocked**: OIDC SSO, Active Directory Sync, Device Trust Windows, SOS Assistance, Web-SSH Bastion, Notification Gateway, Relay Nodes, and White-Labeling.
 - **Unlimited Users**: Test across your entire network with 100, 500, or 1000+ employees.
 - **Graceful degradation**: After 30 days, the server automatically transitions to Free mode (5 users). Existing logins **are never abruptly blocked**, while adding users beyond 5 requires a license.
 
