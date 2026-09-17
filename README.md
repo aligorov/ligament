@@ -44,42 +44,32 @@ Ligament seamlessly unifies your entire IT infrastructure under a single securit
 ## 🚀 Key Capabilities
 
 ```mermaid
-flowchart TD
-    subgraph Users["👤 Users & Endpoints"]
-        U1["💻 Windows 10/11 / Server RDP"]
-        U2["📶 Wi-Fi 802.1X / Corporate VPN"]
-        U3["🌍 Internal Web / SaaS Apps"]
+flowchart LR
+    U["👤 Сотрудники,<br/>устройства, филиалы"]
+
+    subgraph Entries["🔐 Точки входа"]
+        direction TB
+        CP["🪟 Windows Logon / RDP<br/>(Credential Provider)"]
+        RAD["📡 RADIUS<br/>VPN · Wi-Fi 802.1X"]
+        SSO["🔑 OIDC · SAML IdP<br/>MFA-прокси"]
+        BAS["🖥️ Web-SSH<br/>бастион"]
     end
 
-    subgraph LigamentCore["🛡️ Ligament Core Server (Self-Hosted Docker)"]
-        CP["🪟 Windows Credential Provider (Auto-Logon)"]
-        RAD["📡 RADIUS Engine (PAP / EAP / Accounting)"]
-        OIDC["🔑 OIDC / SAML IdP + MFA Proxy"]
-        BAST["🖥️ Web-SSH Bastion"]
-        AUTH["⚙️ Core Auth & Policy Engine"]
-        FSM["🛡️ Fail2ban / Audit / CIDR Firewall"]
-        REL["⚡ Relay Hub (Branch Offices)"]
+    CORE["⚙️ Ligament Core<br/>аутентификация · адаптивные политики<br/>аудит · fail2ban · роли · мониторинг"]
+
+    subgraph Factors["📲 Подтверждение вторым фактором"]
+        direction TB
+        F1["📲 Push + number-matching<br/>(приложения, PWA)"]
+        F2["🤖 Боты-мессенджеров<br/>Telegram · eXpress · MAX · Slack…"]
+        F3["🕒 TOTP · HOTP"]
+        F4["🔑 Passkeys · YubiKey"]
+        F5["✉️ Email · SMS · 📞 голос"]
     end
 
-    subgraph Factors["📲 Verification Factors"]
-        F1["📱 Push + Number Matching (App)"]
-        F2["🤖 Telegram Bot (Push / Alerts)"]
-        F3["🕒 TOTP (Google Auth, 2FAS, MS Auth)"]
-        F4["🔑 Passkeys / WebAuthn / YubiKey"]
-        F5["✉️ Email / 💬 SMS Gateways"]
-        F6["🆘 SOS Remote Assistance"]
-    end
+    REL["⚡ Relay-узлы филиалов<br/>автономная 2FA при обрыве канала"]
 
-    U1 --> CP --> AUTH
-    U2 --> RAD --> AUTH
-    U3 --> OIDC --> AUTH
-    AUTH --> F1
-    AUTH --> F2
-    AUTH --> F3
-    AUTH --> F4
-    AUTH --> F5
-    AUTH --> F6
-    AUTH <--> REL
+    U --> Entries --> CORE --> Factors
+    CORE <-.-> REL
 ```
 
 ### 1. 🪟 Windows Logon & RDP 2FA (Credential Provider)
