@@ -306,29 +306,36 @@ flowchart LR
 
 ## ⚡ Быстрый старт за 2 минуты
 
-Клиенту не нужны исходные коды — всё упаковано в официальный образ Docker Hub:
+Клиенту не нужны исходные коды — всё упаковано в официальный образ Docker Hub.
 
-### 1. Скачайте `docker-compose.yml`
+### Установка одной командой (рекомендуется)
 ```bash
 mkdir -p ligament && cd ligament
+curl -fsSL https://raw.githubusercontent.com/aligorov/ligament/main/install.sh -o install.sh
 curl -fsSL https://raw.githubusercontent.com/aligorov/ligament/main/docker-compose.yml -o docker-compose.yml
+chmod +x install.sh && ./install.sh
 ```
+Инсталлятор сам: проверит Docker и **свободность портов 80/8080 (tcp) и 1812/1813 (udp)**
+(включая занятые другими контейнерами — их системные утилиты не видят), **сгенерирует и
+сохранит пароль PostgreSQL** в `.env` (права 600; при обновлениях переиспользуется — смена
+пароля означала бы потерю БД), при необходимости закрепит версию образа (`--tag vX.Y.Z`) и
+кастомные порты (`--http-port 8080 --radius-auth 11812 …`), дождётся `/healthz` и выложит
+рядом `admin_password.txt` и `admin_recovery_codes.txt` (права 600).
 
-### 2. Запустите стек с надёжным паролем БД
+Полезные флаги: `--fresh` — чистый старт при найденной БД прошлой установки (volume живёт
+в docker независимо от каталога), `--set-password '...'` — свой пароль БД.
+
+### Ручная установка
 ```bash
+curl -fsSL https://raw.githubusercontent.com/aligorov/ligament/main/docker-compose.yml -o docker-compose.yml
 TWOFA_PG_PASSWORD="ПридумайтеСвойНадежныйПароль123" docker compose up -d
 ```
 
-### 3. Получите сгенерированный пароль администратора
-```bash
-docker cp $(docker compose ps -q twofa):/home/nonroot/admin_password.txt .
-cat admin_password.txt
-```
-
-### 4. Вход в веб-интерфейс
-- Откройте: **http://IP-вашего-сервера:8080**
+### Вход в веб-интерфейс
+- Откройте: **http://IP-вашего-сервера** (порт 80; прямой — :8080)
 - Логин: `admin`
-- Пароль: из файла `admin_password.txt`
+- Пароль: из файла `admin_password.txt` (рядом с установкой)
+- Рядом же `admin_recovery_codes.txt` — 5 одноразовых кодов восстановления доступа (сохраните в сейф!)
 - В разделе **/admin → Настройки** настройте параметры Telegram/SMTP и включите 2FA для своей учётной записи.
 
 ---

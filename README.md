@@ -306,7 +306,7 @@ You will receive a cryptographically signed license file (`-----BEGIN LIGAMENT L
 
 ## ⚡ Quick Start in 2 Minutes
 
-No build tools or source compilation required — everything runs in official Docker containers:
+No build tools or source compilation required — everything runs in official Docker containers.
 
 ### One-command install (recommended)
 ```bash
@@ -315,12 +315,15 @@ curl -fsSL https://raw.githubusercontent.com/aligorov/ligament/main/install.sh -
 curl -fsSL https://raw.githubusercontent.com/aligorov/ligament/main/docker-compose.yml -o docker-compose.yml
 chmod +x install.sh && ./install.sh
 ```
-The installer checks Docker, verifies ports **80/8080/tcp and 1812/1813/udp are free**
-(including ports held by other containers), **generates and safely stores** the
-PostgreSQL password in `.env` (chmod 600; reused on upgrades), optionally pins the
-image version (`--tag vX.Y.Z`) and custom ports (`--http-port 8080 --radius-auth 11812 …`),
-waits for `/healthz`, and extracts `admin_password.txt` + `admin_recovery_codes.txt`
-for you.
+The installer checks Docker, verifies ports **80/8080 (tcp) and 1812/1813 (udp) are free**
+(including ports held by other containers — invisible to host utilities), **generates and
+safely stores** the PostgreSQL password in `.env` (chmod 600; reused on upgrades — changing
+it would lose the database), optionally pins the image version (`--tag vX.Y.Z`) and custom
+ports (`--http-port 8080 --radius-auth 11812 …`), waits for `/healthz`, and extracts
+`admin_password.txt` + `admin_recovery_codes.txt` (chmod 600) for you.
+
+Useful flags: `--fresh` — clean start when a previous installation's database is detected
+(docker volumes outlive their directory), `--set-password '...'` — your own DB password.
 
 ### Manual install
 ```bash
@@ -328,17 +331,11 @@ curl -fsSL https://raw.githubusercontent.com/aligorov/ligament/main/docker-compo
 TWOFA_PG_PASSWORD="YourStrongSecretPassword123" docker compose up -d
 ```
 
-### 3. Retrieve the Initial Admin Password
-On first startup, the server automatically generates a secure administrative password:
-```bash
-docker cp $(docker compose ps -q twofa):/home/nonroot/admin_password.txt .
-cat admin_password.txt
-```
-
-### 4. Access the Web Dashboard
-- Open in your browser: **http://YOUR-SERVER-IP:8080**
+### Access the Web Dashboard
+- Open in your browser: **http://YOUR-SERVER-IP** (port 80; direct — :8080)
 - Username: `admin`
-- Password: from `admin_password.txt`
+- Password: from `admin_password.txt` (placed next to the installation)
+- `admin_recovery_codes.txt` nearby — 5 one-time break-glass recovery codes (store them in a safe!)
 - Navigate to **/admin → Settings** to configure your Telegram bot, SMTP email gateway, and activate 2FA for your account.
 
 ---
