@@ -328,9 +328,13 @@ Useful flags: `--fresh` — clean start when a previous installation's database 
 ### Manual install
 ```bash
 curl -fsSL https://raw.githubusercontent.com/aligorov/ligament/main/docker-compose.yml -o docker-compose.yml
-TWOFA_PG_PASSWORD="YourStrongSecretPassword123" docker compose up -d
-> **Note:** avoid a single quote `'` in the DB password with manual install (the installer generates and validates a safe one for you).
+echo 'TWOFA_PG_PASSWORD=YourStrongSecretPassword123' > .env && chmod 600 .env
+docker compose up -d
 ```
+> **Why `.env`:** docker compose reads it automatically — `logs`, `ps`, `down` and upgrades
+> all work without re-exporting the variable (an inline `VAR=... docker compose up` prefix
+> lives only in that one command). Avoid a single quote `'` in the password; the installer
+> generates and validates a safe one for you.
 
 ### Access the Web Dashboard
 - Open in your browser: **http://YOUR-SERVER-IP** (port 80; direct — :8080)
