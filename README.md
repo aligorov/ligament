@@ -308,14 +308,23 @@ You will receive a cryptographically signed license file (`-----BEGIN LIGAMENT L
 
 No build tools or source compilation required — everything runs in official Docker containers:
 
-### 1. Download `docker-compose.yml`
+### One-command install (recommended)
 ```bash
 mkdir -p ligament && cd ligament
+curl -fsSL https://raw.githubusercontent.com/aligorov/ligament/main/install.sh -o install.sh
 curl -fsSL https://raw.githubusercontent.com/aligorov/ligament/main/docker-compose.yml -o docker-compose.yml
+chmod +x install.sh && ./install.sh
 ```
+The installer checks Docker, verifies ports **80/8080/tcp and 1812/1813/udp are free**
+(including ports held by other containers), **generates and safely stores** the
+PostgreSQL password in `.env` (chmod 600; reused on upgrades), optionally pins the
+image version (`--tag vX.Y.Z`) and custom ports (`--http-port 8080 --radius-auth 11812 …`),
+waits for `/healthz`, and extracts `admin_password.txt` + `admin_recovery_codes.txt`
+for you.
 
-### 2. Launch the Stack with a Strong Database Password
+### Manual install
 ```bash
+curl -fsSL https://raw.githubusercontent.com/aligorov/ligament/main/docker-compose.yml -o docker-compose.yml
 TWOFA_PG_PASSWORD="YourStrongSecretPassword123" docker compose up -d
 ```
 
