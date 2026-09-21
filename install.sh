@@ -19,7 +19,7 @@ set -euo pipefail
 compose_file="docker-compose.yml"
 env_file=".env"
 http_port="" app_port="" radius_auth="" radius_acct=""
-image_tag="" pg_password="" data_dir="."
+image_tag="" pg_password="" fresh=0
 
 # ---------- вывод ----------
 say()  { printf '\033[1;32m==>\033[0m %s\n' "$*"; }
@@ -35,6 +35,7 @@ while [[ $# -gt 0 ]]; do
     --radius-acct) radius_acct="${2:?}"; shift 2 ;;
     --tag)         image_tag="${2:?}"; shift 2 ;;
     --set-password) pg_password="${2:?}"; shift 2 ;;
+    --fresh)        fresh=1; shift ;;
     -h|--help) sed -n '2,15p' "$0"; exit 0 ;;
     *) die "Неизвестный аргумент: $1 (см. --help)" ;;
   esac
@@ -81,6 +82,27 @@ done
 if [[ "$P_HTTP" == "$P_APP" ]]; then die "--http-port и --app-port совпадают ($P_HTTP)"; fi
 if [[ "$P_HTTP" -lt 1024 || "$P_APP" -lt 1024 ]] && [[ "$(id -u)" != "0" ]] && [[ "$(uname)" == "Linux" ]]; then
   warn "порт <1024 без root: docker обычно справляется через capabilities, при ошибке bind — sudo или порт ≥1024"
+fi
+
+# ---------- осиротевший volume прошлой установки ----------
+# Проект compose = имя каталога; volume БД переживает down и даже удаление
+# каталога. Свежий .env + старый volume = вечный SASL-отказ (именно это
+# ловили на живом сервере). На свежей установке без .env наличие volume —
+# стоп с двумя выходами: вернуть старый .env или --fresh (снести БД).
+proj_name="$(basename "$PWD")"
+vol_db="${proj_name}_twofa_pgdata"
+have_env=0; [[ -f "$env_file" && -s "$env_file" ]] && have_env=1
+if [[ "$have_env" -eq 0 ]] && docker volume inspect "$vol_db" >/dev/null 2>&1; then
+  if [[ "$fresh" -eq 1 ]]; then
+    warn "Найден volume прошлой установки: $vol_db — удаляю (--fresh)"
+    docker volume rm "$vol_db" >/dev/null
+  else
+    die "Найдена БД прошлой установки (volume $vol_db), а $env_file с её паролем — нет.
+    Варианты:
+      a) перенесите сюда СТАРЫЙ .env той установки (данные сохранятся);
+      b) данные не нужны: ./install.sh --fresh  (БД будет пересоздана с нуля);
+      c) своё имя каталога = отдельный проект docker (volume не пересечётся)."
+  fi
 fi
 
 # ---------- пароли ----------
@@ -135,7 +157,8 @@ if [[ -z "$ok" ]]; then
   warn "healthz не ответил — смотри: dc logs twofa | tail -50"
   if dc logs twofa 2>/dev/null | tail -50 | grep -q "password authentication failed"; then
     warn "Пароль БД не совпадает с volume twofa_pgdata (пароль из старого .env потерян?)."
-    warn "  Верните старый .env, либо пересоздайте БД С ПОТЕРЕЙ данных: docker compose --env-file .env -f docker-compose.yml down -v && rm .env && ./install.sh"
+    warn "  Верните старый .env, либо (данные не нужны):"
+    warn "    cd \"$PWD\" && docker compose --env-file .env -f docker-compose.yml down -v && rm -f .env && ./install.sh --fresh"
   fi
   dc ps
   exit 1
