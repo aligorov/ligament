@@ -329,6 +329,7 @@ chmod +x install.sh && ./install.sh
 ```bash
 curl -fsSL https://raw.githubusercontent.com/aligorov/ligament/main/docker-compose.yml -o docker-compose.yml
 TWOFA_PG_PASSWORD="ПридумайтеСвойНадежныйПароль123" docker compose up -d
+> **Примечание:** при ручной установке не используйте одинарную кавычку `'` в пароле БД (инсталлятор сам генерирует и валидирует безопасный).
 ```
 
 ### Вход в веб-интерфейс

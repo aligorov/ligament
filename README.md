@@ -329,6 +329,7 @@ Useful flags: `--fresh` — clean start when a previous installation's database 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/aligorov/ligament/main/docker-compose.yml -o docker-compose.yml
 TWOFA_PG_PASSWORD="YourStrongSecretPassword123" docker compose up -d
+> **Note:** avoid a single quote `'` in the DB password with manual install (the installer generates and validates a safe one for you).
 ```
 
 ### Access the Web Dashboard

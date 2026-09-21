@@ -113,7 +113,14 @@ if [[ -f "$env_file" ]] && grep -q '^TWOFA_PG_PASSWORD=' "$env_file"; then
   # shellcheck disable=SC1091
   set -a; source "$env_file"; set +a
 else
-  [[ -n "$pg_password" ]] || pg_password="$(gen_pass)"
+  if [[ -n "$pg_password" ]]; then
+  # keyword-DSN в compose экранирует пароль одинарными кавычками: запрещены
+  # только сама ' и перевод строки; прочие спецсимволы (?&<>#) — допустимы.
+  [[ "$pg_password" != *"'"* && "$pg_password" != *$'\n'* ]] \
+    || die "--set-password: пароль не должен содержать одинарную кавычку ' (прочие спецсимволы допустимы)"
+else
+  pg_password="$(gen_pass)"
+fi
   printf 'TWOFA_PG_PASSWORD=%s\n' "$pg_password" > "$env_file"
   chmod 600 "$env_file"
   say "Сгенерирован пароль PostgreSQL и сохранён в $env_file (chmod 600)"
