@@ -9,7 +9,7 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: twofa
-      POSTGRES_PASSWORD: "${TWOFA_PG_PASSWORD:?Ошибка: задайте TWOFA_PG_PASSWORD (пароль БД) перед запуском}"
+      POSTGRES_PASSWORD: "${TWOFA_PG_PASSWORD:?пароль БД не задан: создайте .env (echo TWOFA_PG_PASSWORD=... > .env) — см. install.sh/README; .env подхватывается ВСЕМИ командами compose}"
       POSTGRES_DB: twofa
     volumes:
       - twofa_pgdata:/var/lib/postgresql/data
@@ -30,7 +30,7 @@ services:
       # Keyword/value-DSN с одинарными кавычками вокруг пароля: URL-формат
       # ломался на спецсимволах пароля (?, &, #, <>...) — pgx поддерживает
       # libpq-синтаксис, где кавычки экранируют всё до следующей '.
-      TWOFA_DB_DSN: "host=db port=5432 user=twofa dbname=twofa password='${TWOFA_PG_PASSWORD:?Ошибка: задайте TWOFA_PG_PASSWORD (пароль БД) перед запуском}'"
+      TWOFA_DB_DSN: "host=db port=5432 user=twofa dbname=twofa password='${TWOFA_PG_PASSWORD:?пароль БД не задан: создайте .env (echo TWOFA_PG_PASSWORD=... > .env) — см. install.sh/README; .env подхватывается ВСЕМИ командами compose}'"
       # Доверенные подсети обратного прокси (NPM/nginx/Caddy/Traefik).
       # По умолчанию доверены локальные/Docker сети (127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16).
       # TRUSTED_PROXIES: "127.0.0.0/8,::1/128,172.16.0.0/12,10.0.0.0/8,192.168.0.0/16"
