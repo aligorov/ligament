@@ -36,6 +36,7 @@ Ligament seamlessly unifies your entire IT infrastructure under a single securit
 - 🔑 **Internal Web Applications via Single Sign-On (OpenID Connect IdP)**
 - 🏢 **Branch Offices and Isolated Subnets via Ligament Relay Nodes**
 - 📣 **Employee Notifications — Notification Gateway API with verified contacts (messengers, SMS, Email, Voice)**
+- 👥 **Guests & contractors — temporary sponsored accounts (Wi-Fi, VPN, web)**
 - 📱 **Employee Workstations & Mobile Devices (iOS, Android, Windows, macOS, Linux)**
 
 > 🔒 **Secrets never leave your perimeter.** All databases, user credentials, secrets, audit logs, and master encryption keys remain exclusively on your dedicated servers. The platform has zero dependencies on external cloud vendors and operates reliably even in air-gapped environments without internet access.
@@ -53,7 +54,7 @@ flowchart LR
         CP["🪟 Windows Logon / RDP<br/>(Credential Provider)"]
         RAD["📡 RADIUS<br/>VPN · Wi-Fi 802.1X"]
         SSO["🔑 OIDC · SAML IdP<br/>MFA-прокси"]
-        BAS["🖥️ Web-SSH<br/>бастион"]
+        BAS["🖥️ Бастион<br/>Web-SSH · RDP"]
     end
 
     CORE["⚙️ Ligament Core<br/>аутентификация · адаптивные политики<br/>аудит · fail2ban · роли · мониторинг"]
@@ -77,6 +78,8 @@ flowchart LR
 - **Native Logon Tile**: Direct integration into Windows LogonUI for console and Remote Desktop (RDP) sessions on Windows 10, 11, and Windows Server 2016–2025.
 - **⚡ Instant Auto-Logon**: As soon as the user approves the 2FA prompt on their smartphone (in the app or Telegram), Windows **automatically completes the login** — no need to click the arrow button or press Enter.
 - **🔢 Number Matching**: Protection against Push Bombing and Push Fatigue attacks. A verification number is displayed on the Windows RDP login tile, and the user must type or match this exact number in the mobile app.
+- **🛡️ UAC Elevation 2FA**: the second factor is also requested when privileges are elevated (User Account Control consent prompts) — a push with number matching or a TOTP code at the exact moment an application demands administrator rights, not only at logon.
+- **🧭 Over-the-Shoulder Approval**: when a standard user types an administrator's credentials into a UAC prompt, the approval request is routed to that administrator's phone — not to the person at the keyboard.
 - **🔑 FIDO2 / Passkeys on Login Screen**: Scan a dynamic QR code on the login tile with a mobile camera (biometric Face ID / Touch ID) or tap a hardware YubiKey directly at the Windows login screen.
 - **Fail-Open / Fail-Close Policies**: Configure whether users should be blocked or allowed with password-only if the 2FA server becomes unreachable over the network.
 - **Emergency Bypass Whitelist**: Configurable break-glass local accounts to ensure administrators never get locked out.
@@ -90,6 +93,7 @@ flowchart LR
 - **⏳ Push Holding**: RADIUS engine holds the challenge session while the user responds to the push request on their phone.
 - **Device Trust Window** *(Demo & Commercial)*: Configurable grace period (e.g. 8 hours or 7 days) during which verified devices can reconnect without re-prompting for 2FA.
 - **Vendor-Specific Attributes (VSA)**: Dynamic authorization and group attribute assignment for network access control.
+- **UniFi Multi-Site**: ready-made Ubiquiti UniFi controller integration (RADIUS / 802.1X across multiple sites) — enterprise Wi-Fi for distributed networks out of the box.
 
 ### 3. 🔑 Single Sign-On (OIDC + SAML IdP) & MFA Proxy *(Demo & Commercial)*
 - **Built-in OpenID Connect Provider**: Complete identity provider capabilities without requiring a heavyweight external Keycloak instance.
@@ -97,13 +101,14 @@ flowchart LR
 - **MFA Proxy (forward-auth)**: Protect **any** web service in one line — nginx `auth_request` / Traefik `forwardAuth` call Ligament, authenticated users get `X-Auth-User`/`X-Auth-Role` headers, guests are redirected to login. Your existing apps get MFA without code changes.
 - **Standards Compliant**: Discovery (`/.well-known/openid-configuration`), JWKS (RS256), PKCE (RFC 7636) for mobile and single-page apps.
 - **Application Catalog**: Built-in Launchpad portal and user consent screens.
+- **SAML Apps in the Launchpad**: catalog entries can launch external services via IdP-initiated SAML SSO (e.g. a corporate password vault) — one click after Ligament MFA, without ever touching the target app's own login page.
 - **Seamless Integration**: Ready-to-use protection for Nextcloud, GitLab, 1C:Enterprise, Proxmox VE, Grafana, Portainer, Zabbix, BookStack, and custom enterprise web portals.
 
 ### 4. ⚡ Branch Office Nodes (Ligament Relay) *(Demo & Commercial)*
 - **Branch Architecture**: Deploy lightweight Relay agents to remote offices, satellite branches, or isolated DMZ zones.
 - **Offline Resilience**: Local authentication cache preserves login capabilities during WAN or internet outages.
 - **Encrypted Tunnels**: Persistent, encrypted WebSocket connection with automated user credential sync.
-- **Bastion Tunneling**: The Relay node carries Web-SSH bastion sessions to routers and servers of its local branch network as an encrypted "blind pipe" — isolated branch LANs become reachable from the core without VPN, while the Relay itself cannot read the traffic.
+- **Bastion Tunneling**: The Relay node carries Web-SSH and RDP bastion sessions to routers and servers of its local branch network as an encrypted "blind pipe" — isolated branch LANs become reachable from the core without VPN, while the Relay itself cannot read the traffic.
 
 ### 5. 📲 Full Spectrum of Verification Factors
 | Factor | Description | Highlights |
@@ -122,12 +127,55 @@ flowchart LR
 ### 6. 🆘 Integrated Remote Assistance (SOS Console) *(Demo & Commercial)*
 - Direct help request button located directly on the Windows login screen (accessible without logging in).
 - Social engineering defense: Remote engineer connects only by matching a one-time visual code displayed on the user's screen.
-- Browser-based WebRTC screen viewing (view-only), chat, and file exchange without third-party software (AnyDesk, TeamViewer).
+- **WebRTC remote-control console**: screen viewing and full remote control (keyboard & mouse) — the requester chooses "view-only" or "control" mode when requesting help; chat and file exchange right in the operator's browser, no third-party software (AnyDesk, TeamViewer).
 
-### 7. 🖥️ Web-SSH Bastion *(Demo & Commercial)*
+```mermaid
+flowchart LR
+    U["👤 Пользователь<br/>браузер на экране входа"]
+    O["🛠️ Инженер поддержки<br/>браузер оператора"]
+
+    subgraph CORE["⚙️ Ligament Core — только сигналинг"]
+        SIG["контрольный код · согласие · аудит"]
+    end
+
+    U -- "1. Запрос SOS — контрольный код на экране" --> SIG
+    O -- "2. Ввод кода + MFA оператора" --> SIG
+    U -- "3а. Экран пользователя (видеопоток)" --> O
+    O -- "3б. Управление: клавиатура · мышь · чат · файлы" --> U
+```
+
+> Медиа идут напрямую между браузерами (P2P, DTLS-SRTP) — сервер участвует только в сигналинге и не видит содержимое сессии.
+
+### 7. 🖥️ Bastion: Web-SSH & RDP Forwarding *(Demo & Commercial)*
 - Admins/operators connect to network equipment and servers **through the browser** — Ligament becomes the single entry point: SSO of Ligament itself + 2FA, per-user ACL to targets, host-key TOFU pinning.
+- **RDP Forwarding**: Windows desktops from the very same browser — the RDP session is tunneled through the bastion without exposing port 3389, with the same ACLs, session recording and 2FA; targets behind a branch Relay work exactly like SSH.
 - Session recording (output-only), 30-second access re-validation, brute-force limits per user+target. No VPN/jump-host software for engineers — just a browser.
-- **Branch LANs via Relay**: a target can be attached to a branch Relay node — SSH sessions are tunneled through it to devices in isolated office networks that are unreachable from the datacenter directly.
+- **Branch LANs via Relay**: a target can be attached to a branch Relay node — SSH and RDP sessions are tunneled through it to devices in isolated office networks that are unreachable from the datacenter directly.
+
+```mermaid
+flowchart LR
+    E["👨‍💻 Инженер<br/>браузер"]
+
+    subgraph CORE["⚙️ Ligament Core (SSO + 2FA)"]
+        direction TB
+        GATE["WebSocket-шлюз:<br/>ACL · запись сессий · ревалидация 30 с"]
+    end
+
+    SSH["🖥️ Сервер / маршрутизатор<br/>SSH :22"]
+    RDP["🪟 Windows-хост<br/>RDP :3389"]
+
+    subgraph BRANCH["🏢 Филиал — изолированная сеть"]
+        direction TB
+        RELAY["⚡ Ligament Relay<br/>«слепая труба» — не читает трафик"]
+        DEV["🖱️ Оборудование филиала<br/>SSH :22 · RDP :3389"]
+    end
+
+    E -- "TLS · WebSocket" --> GATE
+    GATE -- "TCP :22" --> SSH
+    GATE -- "TCP :3389 — RDP-проброс" --> RDP
+    GATE <-.-> RELAY
+    RELAY --> DEV
+```
 
 ### 8. 📣 Notification Gateway & Verified Contacts *(Demo & Commercial)*
 - **Ligament as the notification provider for your infrastructure**: a single REST call (`POST /api/v1/notify`) lets monitoring, ITSM and business systems deliver messages to employees through the channels they already use — Telegram, eXpress, MAX, VK Teams, Slack, Mattermost, Discord, VK, Email, SMS and Voice.
@@ -140,12 +188,20 @@ flowchart LR
 - **Cryptographic Primitives**: Argon2id for password hashing, AES-256-GCM with AAD for database secrets, Ed25519 for license signatures, constant-time comparisons.
 - **Built-in CIDR Firewall & Fail2ban**: IP rate limiting, CIDR whitelists/blacklists, automatic temporary bans on brute-force attempts.
 - **Adaptive Policies**: per-group required/denied factors (e.g. «admins — passkey only»), time windows («office hours»), Geo-IP allow/deny lists.
+- **Multiple AD/LDAP Directories** *(Demo & Commercial)*: several directory servers united into one virtual «main»; users log in with whichever format they are used to — `user`, `DOMAIN\user`, or `user@domain`.
 - **Roles & API Tokens**: admin / operator / auditor; API tokens with fine-grained scopes. **Impersonation** with audit trail and one-time **break-glass** recovery codes.
 - **Monitoring**: Prometheus `/metrics`, health endpoint with build version, SIEM connector, event webhooks; admin notifications (license/expiring certs/fail spikes).
 - **Compliance-ready Audit**: immutable log, CSV export, printable **incident report** (timeline + summary) for regulators/ISB.
 - **LAN IP Awareness**: logins capture both external and internal (office subnet) IP — visible in login notifications, push cards, audit UI/CSV and the incident report, so "from home" vs "from the office LAN" is always distinguishable.
 - **Mandatory 2FA Policy**: Forced user onboarding preventing users from bypassing or deleting their only 2FA factor.
 - **Multi-language Support**: Automatic adaptation to the client's OS locale (8 languages: English, Russian, German, French, Spanish, Portuguese, Turkish, Chinese).
+
+### 10. 👥 Guest Access *(Demo & Commercial)*
+- **Temporary accounts**: contractors, interns and visitors get Wi-Fi, VPN and web-portal access without creating permanent employees in AD.
+- **Sponsored access**: an invitation is issued by an employee-sponsor; every guest action is attributed to the sponsor in the audit log.
+- **Auto-expiring lifetime**: an account lives for hours or days and is removed automatically; expired guests are purged in the background.
+- **Zero-onboarding sign-in**: a one-time code via QR invite or link — no app install and no full 2FA onboarding for the guest.
+- **Strict isolation**: dedicated groups and policies — a guest gets exactly what was explicitly allowed (e.g., the guest Wi-Fi SSID only).
 
 ---
 
@@ -157,8 +213,8 @@ flowchart LR
 |---|---|---|---|---|
 | 🟢 **Free** | Homelabs, micro-teams, protecting admin accounts | **$0 forever** | up to 5 | Unlimited |
 | 🟡 **Demo** | Full evaluation of every enterprise feature | $0 | Unlimited | 30 days, bound to your server hardware → gracefully falls back to Free |
-| 🔵 **Subscription** | Production | **$1** / user / month | per seats | 3 / 6 / **13 months (13th free)** |
-| 🟣 **Perpetual** | Production, buy once | **$2.5** / user one-time | per seats | Forever |
+| 🔵 **Subscription** | Production | **$2** / user / month | per seats | 3 / 6 / **13 months (13th free)** |
+| 🟣 **Perpetual** | Production, buy once | **$5** / user one-time | per seats | Forever |
 
 ### ✅ Included in every edition (even Free)
 
@@ -184,18 +240,19 @@ flowchart LR
 | **Active Directory / LDAP sync** (`ldap`) | ❌ | ✅ | ✅ | ✅ |
 | **RADIUS Device Trust Window** (`trust`) | ❌ 2FA every login | ✅ | ✅ | ✅ |
 | **Geo-IP access policies** (`geo`) | ❌ | ✅ | ✅ | ✅ |
-| **SOS Remote Assistance** (`support`) | ❌ | ✅ | ✅ | ✅ |
-| **Web-SSH Bastion** (`bastion`) | ❌ | ✅ | ✅ | ✅ |
+| **SOS Remote Assistance (WebRTC console)** (`support`) | ❌ | ✅ | ✅ | ✅ |
+| **Bastion: Web-SSH + RDP Forwarding** (`bastion`) | ❌ | ✅ | ✅ | ✅ |
+| **Guest Access (sponsored accounts)** (`guest`) | ❌ | ✅ | ✅ | ✅ |
 | **SIEM connector** (`siem`) | ❌ | ✅ | ✅ | ✅ |
 | **Notification Gateway + Verified Contacts** (`notify`) | ❌ | ✅ | ✅ | ✅ |
 | **Company Branding / White-Label** | ❌ | ✅ | ✅ | ✅ |
-| **Branch Relay nodes** (`relay`) | ❌ 0 nodes | ✅ unlimited | **$200** / node / term | **$500** / node one-time |
+| **Branch Relay nodes** (`relay`) | ❌ 0 nodes | ✅ unlimited | **$400** / node / term | **$1,000** / node one-time |
 
 > 💡 **Demo = 100% of features, unlimited users, zero registration.** After 30 days it degrades gracefully to Free — existing logins are never blocked.
 
 ---
 
-### 🥊 Competitor Comparison
+### 🥊 Competitor Comparison — Russian market
 
 | Capability | 🛡️ **Ligament** | Multifactor | IDEA MFA | ViPNet IAS | UserGate MFA |
 |---|---|---|---|---|---|
@@ -208,8 +265,32 @@ flowchart LR
 | **FIDO2 / Passkeys / YubiKey** | **Yes (Web & Windows Tile)** | Yes | Yes | Yes | Partial |
 | **Built-in OIDC SSO IdP** | **Yes (Self-Hosted in core)** | Cloud-mediated | Yes | Yes | Via platform |
 | **RADIUS + Device Trust** | **Yes (Per-user/group)** | Radius Adapter | Yes | Yes | Yes |
-| **Integrated SOS Support Console** | **Yes (WebRTC on login tile)** | None | None | None | None |
+| **SOS Console (WebRTC: view + control)** | **Yes (right on the login tile)** | None | None | None | None |
+| **Bastion: Web-SSH + RDP forwarding in the browser** | **Yes (ACLs, session recording, branches via Relay)** | None | None | None | None |
+| **Guest access (temporary sponsored accounts)** | **Yes (auto-expiring)** | None | None | None | None |
 | **Multi-Language Support** | **8 languages out-of-the-box** | RU / EN | RU | RU | RU |
+
+### 🌍 International Alternatives
+
+The global self-hosted MFA class (public list data, October 2026):
+
+| Capability | 🛡️ **Ligament** | RCDevs OpenOTP 🇱🇺 | privacyIDEA 🇩🇪 | Fortinet FortiAuthenticator 🇺🇸 | Cisco Duo 🇺🇸 |
+|---|---|---|---|---|---|
+| **Deployment** | **100% self-hosted — one Docker container** | Self-hosted (Linux suite) | Self-hosted (OSS, AGPL) | On-prem VM / appliance | **Cloud SaaS** (on-prem = proxy only) |
+| **Free tier** | **5 users forever** | 25 users | Community — unlimited | None | 10 users |
+| **Windows Logon / RDP 2FA** | **Yes (Auto-Logon + QR passkeys)** | Yes (own CP) | Yes (official plugin) | Yes (agent) | Yes (CP) |
+| **UAC elevation 2FA** | **Yes + approval goes to the admin** | Yes | Yes | Limited | Yes |
+| **Approve/deny in messengers (Telegram, corporate bots)** | **Yes — native, incl. self-service cabinet** | — | — | — | — |
+| **Push to PWA without an app store** | **Yes (Web Push incl. iOS)** | — | — | — | — |
+| **Push 2FA on Wi-Fi / VPN connect (RADIUS)** | **Yes — built-in RADIUS server** | Yes (RADIUS bridge) | Via FreeRADIUS plugin | Yes (FortiToken) | VPN only (via cloud proxy) |
+| **Built-in OIDC + SAML IdP** | **Yes (in the core)** | Partial | Via plugins | Yes (SAML) | Cloud SSO |
+| **Bastion: Web-SSH + RDP forwarding (browser + session recording)** | **Yes** | — | — | — | — |
+| **SOS remote assistance on the login screen (view + control)** | **Yes** | — | — | — | — |
+| **Guest access (auto-expiring sponsored accounts)** | **Yes** | — | — | — | — |
+| **Branch relay nodes (offline 2FA cache)** | **Yes (Ligament Relay)** | — | — | — | — |
+| **Entry price** | **$2/user/mo · $5 one-time** | ~€2.3/user/mo | Free (OSS) + paid support | Quote-based | $3–9/user/mo |
+
+> 📊 An independent market scan (October 2026; five segments: open-source, enterprise platforms, RADIUS-as-a-Service, Windows-logon MFA, bastions/PAM) found **no international vendor** that combines interactive messenger approvals, PWA-based push, a bundled Web-SSH/RDP bastion, an SOS console and guest access in one self-hosted product. The corporate Wi-Fi segment abroad has largely moved to certificate-based EAP-TLS (SecureW2, Keytos, RADIUSaaS) — Ligament deliberately keeps password-based EAP-TTLS/PEAP with live push approval, which is dramatically simpler and cheaper to operate in small and mid-size networks.
 
 ---
 
@@ -244,9 +325,10 @@ flowchart LR
 - 🔒 **OIDC / SSO Identity Provider (`sso`)**: External web apps cannot use Ligament as an SSO IdP (OIDC endpoints return `403 feature_not_licensed`).
 - 🔒 **Active Directory / LDAP Sync (`ldap`)**: Automated directory synchronization and AD password verification are disabled.
 - 🔒 **RADIUS Device Trust Window (`trust`)**: Verified devices cannot skip 2FA for N days/hours.
-- 🔒 **SOS Remote Assistance (`support`)**: Remote WebRTC assistance console on the login screen is disabled.
+- 🔒 **SOS Remote Assistance (`support`)**: Remote WebRTC assistance console (view and control) on the login screen is disabled.
 - 🔒 **Geo-IP Policies (`geo`)**: Geo-IP allow/deny login rules are disabled.
-- 🔒 **Web-SSH Bastion (`bastion`)**: Browser SSH console is disabled.
+- 🔒 **Web-SSH/RDP Bastion (`bastion`)**: Browser SSH and RDP consoles are disabled.
+- 🔒 **Guest Access (`guest`)**: Issuing guest invitations is disabled.
 - 🔒 **SIEM Connector (`siem`)**: Export to external SIEM is disabled.
 - 🔒 **Notification Gateway (`notify`)**: External systems cannot send messages to employees via verified contacts.
 - 🔒 **Branch Relay Nodes (`relay`)**: Remote branch office nodes are blocked (0 nodes permitted).
@@ -255,7 +337,7 @@ flowchart LR
 
 ### 🟡 What is included in the 30-Day Demo (Trial):
 - Issued **on request in one email**: send us your server's **Activation Code** (visible in the admin console) — you get a signed demo file in reply. No payment, no account registration. The file is **cryptographically bound to that exact server hardware** and can't be reused elsewhere.
-- **100% of Enterprise features unlocked**: OIDC SSO, Active Directory Sync, Device Trust Windows, SOS Assistance, Web-SSH Bastion, Notification Gateway, Relay Nodes, and White-Labeling.
+- **100% of Enterprise features unlocked**: OIDC SSO, Active Directory Sync, Device Trust Windows, SOS Assistance, the Web-SSH/RDP Bastion, Guest Access, Notification Gateway, Relay Nodes, and White-Labeling.
 - **Unlimited Users**: Test across your entire network with 100, 500, or 1000+ employees.
 - **Graceful degradation**: After 30 days, the server automatically transitions to Free mode (5 users). Existing logins **are never abruptly blocked**, while adding users beyond 5 requires a license.
 
@@ -266,14 +348,14 @@ flowchart LR
 Commercial licenses are purchased transparently and securely using USDT cryptocurrency:
 
 ### 1. Pricing Formula
-- **Subscription**: `$1 × [User Count] × [Term: 3, 6, or 13 months] + [$200 × Relay Count]`  
+- **Subscription**: `$2 × [User Count] × [Term: 3, 6, or 13 months] + [$400 × Relay Count]`  
   *(Annual orders receive the 13th month completely free!)*
-- **Perpetual (Lifetime)**: `$2.5 × [User Count] + [$500 × Relay Count]` (one-time payment forever).
+- **Perpetual (Lifetime)**: `$5 × [User Count] + [$1,000 × Relay Count]` (one-time payment forever).
 
 #### Calculation Examples:
-- **50 users for 6 months**: `50 × $1 × 6 = 300 USDT`
-- **100 users for 13 months + 1 Relay**: `100 × $1 × 12 mo + $200 = 1,400 USDT`
-- **200 users Perpetual (Lifetime) + 2 Relays**: `200 × $2.5 + 2 × $500 = 1,500 USDT`
+- **50 users for 6 months**: `50 × $2 × 6 = 600 USDT`
+- **100 users for 13 months + 1 Relay**: `100 × $2 × 12 mo + $400 = 2,800 USDT`
+- **200 users Perpetual (Lifetime) + 2 Relays**: `200 × $5 + 2 × $1,000 = 3,000 USDT`
 
 ### 2. Payment Details (USDT TRC-20)
 Send the exact calculated amount to the official project wallet:
@@ -351,7 +433,7 @@ Official client packages and installers are published in the [**ligament-apps/re
 
 | Component | Platform | Format | Purpose |
 |---|---|---|---|
-| **Windows Credential Provider** | Windows 10, 11, Server 2016–2025 | `.msi`, `.zip` | LogonUI module: RDP/Local 2FA with Auto-Logon |
+| **Windows Credential Provider** | Windows 10, 11, Server 2016–2025 | `.msi`, `.zip` | LogonUI module: RDP/Local 2FA with Auto-Logon, UAC elevation MFA |
 | **Ligament Relay Agent** | Linux (Docker, Binary), Windows Server | Docker image, `.zip` | Peripheral branch node: offline auth cache & isolated subnet proxy |
 | **Ligament Authenticator** | Android | `.apk` | Mobile client with Push, number matching, and biometrics |
 | **Ligament Authenticator** | Windows | `.exe`, `.zip` | System tray desktop client with instant push alerts |
