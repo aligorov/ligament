@@ -41,6 +41,17 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# ---------- валидация аргументов ----------
+# Значения попадают в .env (compose подставляет их в конфиги) и в маппинги
+# портов: принимаем только цифры и безопасные для sed/shell символы.
+for p_name in http_port app_port radius_auth radius_acct; do
+  p_val="${!p_name}"
+  [[ -z "$p_val" ]] && continue
+  [[ "$p_val" =~ ^[0-9]+$ ]] || die "--${p_name//_/-}: ожидается номер порта, получено: '$p_val'"
+done
+[[ -z "$image_tag" ]] || [[ "$image_tag" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] \
+  || die "--tag: допустимы буквы, цифры, точка, дефис, подчёркивание: '$image_tag'"
+
 cd "$(dirname "$0")"
 
 # ---------- зависимости ----------
@@ -107,17 +118,30 @@ fi
 
 # ---------- пароли ----------
 say "Пароли"
-gen_pass() { (command -v openssl >/dev/null && openssl rand -base64 24 | tr -d '/+=' | head -c 28) || (LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 28); }
+gen_pass() {
+  # Обе ветки читают КОНЕЧНЫЙ вход и собирают вывод через $( ) — под
+  # set -o pipefail бесконечный /dev/urandom + head даёт SIGPIPE(141)
+  # и убивал бы скрипт; буфер 512 байт даёт ~124 alnum-символа.
+  local s=""
+  if command -v openssl >/dev/null 2>&1; then
+    s="$(openssl rand -base64 48 | tr -d '/+=')"
+  else
+    s="$(head -c 512 /dev/urandom | LC_ALL=C tr -dc 'A-Za-z0-9')"
+  fi
+  printf '%s' "${s:0:28}"
+}
 if [[ -f "$env_file" ]] && grep -q '^TWOFA_PG_PASSWORD=' "$env_file"; then
   say "Найден $env_file — пароль БД переиспользуется (смена пароля = потеря базы)"
-  # shellcheck disable=SC1091
-  set -a; source "$env_file"; set +a
+  # Пароль в shell не читается: compose получает его сам через --env-file.
+  # Исполнение .env через source убрано — произвольное содержимое файла
+  # не должно выполняться как код.
 else
   if [[ -n "$pg_password" ]]; then
-  # keyword-DSN в compose экранирует пароль одинарными кавычками: запрещены
-  # только сама ' и перевод строки; прочие спецсимволы (?&<>#) — допустимы.
-  [[ "$pg_password" != *"'"* && "$pg_password" != *$'\n'* ]] \
-    || die "--set-password: пароль не должен содержать одинарную кавычку ' (прочие спецсимволы допустимы)"
+  # Пароль пишется в .env без кавычек и позже читается compose: разрешаем
+  # только символы, безопасные одновременно для keyword-DSN pgx (без ')
+  # и для shell/compose-интерполяции (без $ ` ; & | < > \ " и пробелов).
+  [[ "$pg_password" =~ ^[A-Za-z0-9!@#%^*+=:,._~-]+$ ]] \
+    || die "--set-password: допустимы буквы, цифры и символы ! @ # % ^ * + = : , . _ - ~ (кавычки, \$, пробелы и прочие спецсимволы запрещены)"
 else
   pg_password="$(gen_pass)"
 fi
@@ -125,6 +149,24 @@ fi
   chmod 600 "$env_file"
   say "Сгенерирован пароль PostgreSQL и сохранён в $env_file (chmod 600)"
 fi
+chmod 600 "$env_file"   # и для переиспользуемого .env (мог быть создан вне скрипта)
+
+# Установка по Quick Start — пустая папка без git-репозитория: если она
+# позже им станет, секреты не должны уехать в коммит. .gitignore ниже
+# дополняется только недостающими строками.
+ensure_gitignore() {
+  local gi=".gitignore" entry
+  touch "$gi"
+  local entries=(
+    "# Секреты и артефакты install.sh — никогда не коммитить"
+    ".env" "*.bak" "ap2.txt" "admin_password.txt" "admin_recovery_codes.txt" "config.yaml"
+  )
+  for entry in "${entries[@]}"; do
+    grep -qxF "$entry" "$gi" || printf '%s\n' "$entry" >> "$gi"
+  done
+  return 0
+}
+ensure_gitignore
 [[ -n "$image_tag" ]] && printf 'TWOFA_IMAGE_TAG=%s\n' "$image_tag" >> "$env_file"
 # Порты в .env — compose подставляет их сам (дефолты в docker-compose.yml).
 # 80 и 8080 оба ведут на web-порт контейнера: 80 — для ACME/plain-прокси,
