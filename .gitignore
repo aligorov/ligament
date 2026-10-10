@@ -1,0 +1,8 @@
+# Секреты и артефакты install.sh — никогда не коммитить
+.env
+*.bak
+ap2.txt
+admin_password.txt
+admin_recovery_codes.txt
+# Конфиг узла Relay: содержит пароль подключения к центральному ядру
+config.yaml
