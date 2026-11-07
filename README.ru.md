@@ -477,8 +477,8 @@ docker compose up -d
 
 ## 📄 Документация и презентация
 
-- 📊 **Презентация продукта (PDF)**: [`presentation/Ligament-MFA-Обзор-и-сравнение-v2.pdf`](presentation/Ligament-MFA-Обзор-и-сравнение-v2.pdf) — 15-страничный аналитический обзор с архитектурой и сравнением с российскими аналогами.
-- 🌐 **Интерактивная презентация**: [`presentation/ligament-presentation-v2.html`](presentation/ligament-presentation-v2.html).
+- 📊 **Презентация продукта (PDF)**: [`presentation/v4/Ligament-Обзор-2026-10-10.pdf`](presentation/v4/Ligament-Обзор-2026-10-10.pdf) — 22 слайда: возможности, схемы взаимодействия, цены и сравнение с российскими аналогами (10 октября 2026).
+- 🌐 **Интерактивная презентация**: [`presentation/v4/Ligament-Обзор-2026-10-10.html`](presentation/v4/Ligament-Обзор-2026-10-10.html).
 - 🧩 **Клиентский репозиторий**: [aligorov/ligament-apps](https://github.com/aligorov/ligament-apps).
 
 ---

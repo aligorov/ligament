@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 360" width="1280" height="360">
+  <defs>
+    <linearGradient id="ga" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6366f1"/>
+      <stop offset="1" stop-color="#4f46e5"/>
+    </linearGradient>
+  </defs>
+  <!-- Марка «Связка» -->
+  <g transform="translate(56,80)">
+    <g transform="translate(120,120) rotate(45)">
+      <rect x="-42" y="-42" width="84" height="84" rx="24" fill="none" stroke="#312e81" stroke-width="20"/>
+    </g>
+    <g transform="translate(80,80) rotate(45)">
+      <rect x="-42" y="-42" width="84" height="84" rx="24" fill="none" stroke="url(#ga)" stroke-width="20"/>
+    </g>
+  </g>
+  <!-- Словесный знак -->
+  <text x="320" y="210" font-family="'SF Pro Display','Inter','Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif" font-size="132" font-weight="700" fill="#0f172a" letter-spacing="-3">Ligament</text>
+  <text x="324" y="268" font-family="'SF Pro Display','Inter','Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif" font-size="26" font-weight="600" fill="#4f46e5" letter-spacing="8.5">TWO-FACTOR AUTHENTICATION</text>
+</svg>

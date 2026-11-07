@@ -1,0 +1,33 @@
+- generic [ref=e2]:
+  - 'heading "Ligament — 3 концепта логотипа (фирменный индиго #4f46e5)" [level=1] [ref=e3]'
+  - generic [ref=e4]:
+    - heading "Светлый фон" [level=2] [ref=e5]
+    - generic [ref=e6]:
+      - img "A" [ref=e8]
+      - generic [ref=e9]:
+        - generic [ref=e10]: A — «Связка»
+        - text: "Два сцепленных звена: ligament = связка. Пара факторов, сомкнутых в одно целое. Универсальная марка для шапки, аватара бота, favicon."
+      - img "A mark" [ref=e12]
+      - generic [ref=e13]: марка
+    - generic [ref=e14]:
+      - img "B" [ref=e16]
+      - generic [ref=e17]:
+        - generic [ref=e18]: B — L-монограмма
+        - text: Буква L из двух брусков с «суставом»-зазором — снова связка двух элементов. Готовая иконка приложения / PWA / favicon.
+      - img "B tile" [ref=e20]
+      - generic [ref=e21]: app-icon
+    - generic [ref=e22]:
+      - img "C" [ref=e24]
+      - generic [ref=e25]:
+        - generic [ref=e26]: C — Щит + L
+        - text: Классический security-щит с L-связкой внутри. Самый «корпоративный» и консервативный вариант.
+      - img "C mark" [ref=e28]
+      - generic [ref=e29]: марка
+  - generic [ref=e30]:
+    - heading "Тёмный фон" [level=2] [ref=e31]
+    - generic [ref=e32]:
+      - generic [ref=e33]:
+        - img "A dark" [ref=e34]
+        - img "B dark" [ref=e35]
+        - img "C dark" [ref=e36]
+      - generic [ref=e37]: Марки на тёмном (тёмный вариант лого-блока и светлый текст сделаю под выбранный концепт).

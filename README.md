@@ -478,8 +478,8 @@ For remote branch offices and isolated network enclaves requiring offline 2FA au
 
 ## 📄 Documentation & Presentation
 
-- 📊 **Product Presentation (PDF)**: [`presentation/Ligament-MFA-Обзор-и-сравнение-v2.pdf`](presentation/Ligament-MFA-Обзор-и-сравнение-v2.pdf) — 15-page analytical overview covering architecture and competitor comparisons.
-- 🌐 **Interactive Web Presentation**: [`presentation/ligament-presentation-v2.html`](presentation/ligament-presentation-v2.html).
+- 📊 **Product Presentation (PDF)**: [`presentation/v4/Ligament-Обзор-2026-10-10.pdf`](presentation/v4/Ligament-Обзор-2026-10-10.pdf) — 22-slide overview covering capabilities, interaction diagrams, pricing and competitor comparisons (October 10, 2026).
+- 🌐 **Interactive Web Presentation**: [`presentation/v4/Ligament-Обзор-2026-10-10.html`](presentation/v4/Ligament-Обзор-2026-10-10.html).
 - 🧩 **Client Applications Repository**: [aligorov/ligament-apps](https://github.com/aligorov/ligament-apps).
 
 ---
