@@ -14,6 +14,7 @@ compose_file="docker-compose.yml"
 env_file=".env"
 http_port="" app_port="" radius_auth="" radius_acct=""
 image_tag="" pg_password="" fresh=0
+force_mirrors=0 no_mirrors=0
 
 # ---------- вывод ----------
 say()  { printf '\033[1;32m==>\033[0m %s\n' "$*"; }
@@ -30,6 +31,8 @@ while [[ $# -gt 0 ]]; do
     --tag)          image_tag="${2:?}"; shift 2 ;;
     --set-password) pg_password="${2:?}"; shift 2 ;;
     --fresh)        fresh=1; shift ;;
+    --mirrors)      force_mirrors=1; shift ;;
+    --no-mirrors)   no_mirrors=1; shift ;;
     -h|--help)
       sed -n '2,15p' "$0" 2>/dev/null || true
       exit 0
@@ -242,11 +245,101 @@ upsert_env LIG_RADIUS_AUTH "$P_AUTH"
 upsert_env LIG_RADIUS_ACCT "$P_ACCT"
 [[ -n "$image_tag" ]] && { upsert_env TWOFA_IMAGE_TAG "$image_tag"; say "Версия образа: $image_tag"; }
 
+# ---------- зеркала Docker Hub (для РФ) ----------
+setup_docker_mirrors() {
+  [[ "$(uname)" == "Linux" ]] || return 0
+  if [[ "$(id -u)" != "0" ]]; then
+    warn "Для авто-настройки зеркал Docker требуются права root."
+    return 1
+  fi
+
+  say "Подключение зеркал Docker Hub (/etc/docker/daemon.json)..."
+  mkdir -p /etc/docker
+  local daemon_json="/etc/docker/daemon.json"
+
+  if command -v python3 >/dev/null 2>&1; then
+    python3 -c '
+import json, os
+path = "/etc/docker/daemon.json"
+data = {}
+if os.path.exists(path) and os.path.getsize(path) > 0:
+    try:
+        with open(path, "r") as f:
+            data = json.load(f)
+    except Exception:
+        data = {}
+mirrors = data.setdefault("registry-mirrors", [])
+for m in ["https://dockerhub.timeweb.cloud", "https://dh-mirror.gitverse.ru", "https://huecker.io"]:
+    if m not in mirrors:
+        mirrors.append(m)
+with open(path, "w") as f:
+    json.dump(data, f, indent=2)
+'
+  elif command -v jq >/dev/null 2>&1 && [[ -f "$daemon_json" && -s "$daemon_json" ]]; then
+    local tmp; tmp="$(mktemp)"
+    jq '.["registry-mirrors"] = ((.["registry-mirrors"] // []) + ["https://dockerhub.timeweb.cloud", "https://dh-mirror.gitverse.ru", "https://huecker.io"] | unique)' "$daemon_json" > "$tmp" && mv "$tmp" "$daemon_json"
+  else
+    if [[ ! -f "$daemon_json" || ! -s "$daemon_json" ]]; then
+      cat <<'EOF' > "$daemon_json"
+{
+  "registry-mirrors": [
+    "https://dockerhub.timeweb.cloud",
+    "https://dh-mirror.gitverse.ru",
+    "https://huecker.io"
+  ]
+}
+EOF
+    fi
+  fi
+
+  say "Перезапуск службы Docker..."
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl daemon-reload >/dev/null 2>&1 || true
+    systemctl restart docker >/dev/null 2>&1 || true
+  elif command -v service >/dev/null 2>&1; then
+    service docker restart >/dev/null 2>&1 || true
+  fi
+  sleep 2
+  say "Зеркала подключены: dockerhub.timeweb.cloud, dh-mirror.gitverse.ru, huecker.io"
+}
+
+check_and_setup_mirrors() {
+  [[ "$no_mirrors" -eq 1 ]] && return 0
+  [[ "$(uname)" == "Linux" ]] || return 0
+  [[ "$(id -u)" == "0" ]] || return 0
+
+  if docker info 2>/dev/null | grep -q "Registry Mirrors:"; then
+    return 0
+  fi
+
+  if [[ "$force_mirrors" -eq 1 ]]; then
+    setup_docker_mirrors
+    return 0
+  fi
+
+  # Проверка прямого ответа Docker Hub (таймаут 3с)
+  if ! curl -s -m 3 -I "https://registry-1.docker.io/v2/" 2>/dev/null | grep -qE "401|200"; then
+    warn "Docker Hub напрямую не отвечает (таймаут/блокировка в РФ)"
+    setup_docker_mirrors
+  fi
+}
+
 # ---------- развёртывание ----------
 dc() { $DC_CMD --env-file "$env_file" -f "$compose_file" "$@"; }
 
 say "Загрузка Docker-образов"
-dc pull
+check_and_setup_mirrors
+
+if ! dc pull; then
+  if [[ "$no_mirrors" -eq 0 && "$(uname)" == "Linux" && "$(id -u)" == "0" ]] && ! (docker info 2>/dev/null | grep -q "Registry Mirrors:"); then
+    warn "Прямая загрузка не удалась. Подключаю российские зеркала Docker..."
+    setup_docker_mirrors
+    say "Повторная загрузка через зеркала..."
+    dc pull || die "Не удалось загрузить Docker-образы даже через зеркала"
+  else
+    die "Не удалось загрузить Docker-образы"
+  fi
+fi
 
 say "Запуск сервисов Ligament (PostgreSQL + Core)"
 dc up -d
