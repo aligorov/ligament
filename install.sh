@@ -2,17 +2,11 @@
 # =============================================================================
 # Ligament 2FA — быстрое развёртывание одной командой (готовый образ Docker Hub)
 #
-#   curl -fsSL .../install.sh | bash          # localhost:80, авто-пароль БД
+#   curl -fsSL https://raw.githubusercontent.com/aligorov/ligament/main/install.sh | bash
 #   ./install.sh --http-port 8080             # свой HTTP-порт (без root)
-#   ./install.sh --tag v0.8.22                # пин конкретной версии
+#   ./install.sh --tag latest                 # пин конкретной версии
 #   ./install.sh --set-password '...'         # свой пароль БД (иначе сгенерится)
-#
-# Что делает:
-#   1. Проверяет docker/compose и СВОБОДНОСТЬ портов (80/8080 tcp, 1812/1813 udp);
-#   2. Генерирует и НАВСЕГДА сохраняет пароль PostgreSQL в .env (chmod 600) —
-#      при повторных запусках переиспользуется (смена = потеря БД);
-#   3. Поднимает postgres+ligament, ждёт /healthz;
-#   4. Выкладывает admin_password.txt и admin_recovery_codes.txt рядом со скриптом.
+#   ./install.sh --fresh                      # чистая переустановка со сбросом БД
 # =============================================================================
 set -euo pipefail
 
@@ -29,21 +23,22 @@ die()  { printf '\033[1;31m[X]\033[0m %s\n' "$*" >&2; exit 1; }
 # ---------- аргументы ----------
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --http-port)   http_port="${2:?}"; shift 2 ;;
-    --app-port)    app_port="${2:?}"; shift 2 ;;
-    --radius-auth) radius_auth="${2:?}"; shift 2 ;;
-    --radius-acct) radius_acct="${2:?}"; shift 2 ;;
-    --tag)         image_tag="${2:?}"; shift 2 ;;
+    --http-port)    http_port="${2:?}"; shift 2 ;;
+    --app-port)     app_port="${2:?}"; shift 2 ;;
+    --radius-auth)  radius_auth="${2:?}"; shift 2 ;;
+    --radius-acct)  radius_acct="${2:?}"; shift 2 ;;
+    --tag)          image_tag="${2:?}"; shift 2 ;;
     --set-password) pg_password="${2:?}"; shift 2 ;;
     --fresh)        fresh=1; shift ;;
-    -h|--help) sed -n '2,15p' "$0"; exit 0 ;;
+    -h|--help)
+      sed -n '2,15p' "$0" 2>/dev/null || true
+      exit 0
+      ;;
     *) die "Неизвестный аргумент: $1 (см. --help)" ;;
   esac
 done
 
 # ---------- валидация аргументов ----------
-# Значения попадают в .env (compose подставляет их в конфиги) и в маппинги
-# портов: принимаем только цифры и безопасные для sed/shell символы.
 for p_name in http_port app_port radius_auth radius_acct; do
   p_val="${!p_name}"
   [[ -z "$p_val" ]] && continue
@@ -52,60 +47,132 @@ done
 [[ -z "$image_tag" ]] || [[ "$image_tag" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] \
   || die "--tag: допустимы буквы, цифры, точка, дефис, подчёркивание: '$image_tag'"
 
-cd "$(dirname "$0")"
+# Переходим в директорию скрипта, только если это реальный файл
+if [[ -f "${BASH_SOURCE[0]:-$0}" ]]; then
+  cd "$(dirname "${BASH_SOURCE[0]:-$0}")"
+fi
 
 # ---------- зависимости ----------
 say "Проверка зависимостей"
 command -v docker >/dev/null || die "docker не найден: установите Docker (https://docs.docker.com/engine/install/)"
-docker compose version >/dev/null 2>&1 || die "docker compose (v2 plugin) не найден"
-docker info >/dev/null 2>&1 || die "docker-демон недоступен (запущен ли сервис? права группы docker?)"
 
-if [[ ! -f "$compose_file" ]]; then
-  say "$compose_file не найден в текущей папке, скачиваю с GitHub..."
-  command -v curl >/dev/null || die "curl не найден для загрузки $compose_file"
-  curl -fsSL "https://raw.githubusercontent.com/aligorov/ligament/main/docker-compose.yml" -o "$compose_file" \
-    || die "не удалось скачать $compose_file с GitHub"
+DC_CMD=""
+if docker compose version >/dev/null 2>&1; then
+  DC_CMD="docker compose"
+elif command -v docker-compose >/dev/null 2>&1; then
+  DC_CMD="docker-compose"
+else
+  die "docker compose не найден (установите плагин docker compose v2 или docker-compose)"
 fi
 
-# ---------- порты ----------
+docker info >/dev/null 2>&1 || die "docker-демон недоступен (запущен ли сервис? права группы docker?)"
+
+# ---------- автогенерация docker-compose.yml ----------
+if [[ ! -f "$compose_file" ]]; then
+  say "Создание конфигурации $compose_file..."
+  cat <<'EOF' > "$compose_file"
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: twofa
+      POSTGRES_PASSWORD: "${TWOFA_PG_PASSWORD:?пароль БД не задан: создайте .env (echo TWOFA_PG_PASSWORD=... > .env)}"
+      POSTGRES_DB: twofa
+    volumes:
+      - twofa_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U twofa -d twofa"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  twofa:
+    image: aligorov/ligament_2fa:${TWOFA_IMAGE_TAG:-latest}
+    hostname: ligament-auth
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      TWOFA_DB_DSN: "host=db port=5432 user=twofa dbname=twofa password='${TWOFA_PG_PASSWORD:?пароль БД не задан}'"
+    ports:
+      - "${LIG_HTTP_PORT:-80}:8080"
+      - "${LIG_APP_PORT:-8080}:8080"
+      - "${LIG_RADIUS_AUTH:-1812}:1812/udp"
+      - "${LIG_RADIUS_ACCT:-1813}:1813/udp"
+    volumes:
+      - /etc/machine-id:/etc/host-machine-id:ro
+    restart: unless-stopped
+
+volumes:
+  twofa_pgdata:
+EOF
+fi
+
+# Поддержка machine-id в Linux
+if [[ ! -f /etc/machine-id ]] && [[ "$(uname)" == "Linux" ]]; then
+  if [[ -f /var/lib/dbus/machine-id ]]; then
+    ln -s /var/lib/dbus/machine-id /etc/machine-id 2>/dev/null || true
+  else
+    touch /etc/machine-id 2>/dev/null || true
+  fi
+fi
+
+# ---------- проверка портов ----------
 port_busy_tcp() {
   local p="$1"
   if command -v ss >/dev/null 2>&1; then ss -ltnH "( sport = :$p )" 2>/dev/null | grep -q .
   elif command -v netstat >/dev/null 2>&1; then netstat -ltn 2>/dev/null | awk '{print $4}' | grep -qE "[:.]$p$"
   elif command -v lsof >/dev/null 2>&1; then lsof -nP -iTCP:"$p" -sTCP:LISTEN >/dev/null 2>&1
-  else warn "нет ss/netstat/lsof — проверку порта $p пропускаю"; return 1; fi
+  else return 1; fi
 }
 port_busy_udp() {
   local p="$1"
   if command -v ss >/dev/null 2>&1; then ss -lunH "( sport = :$p )" 2>/dev/null | grep -q .
   elif command -v netstat >/dev/null 2>&1 && netstat -lun >/dev/null 2>&1; then netstat -lun 2>/dev/null | awk '{print $4}' | grep -qE "[:.]$p$"
-  else warn "нет ss/netstat — системную проверку udp/$p пропускаю"; return 1; fi
+  else return 1; fi
 }
-docker_busy() { # порт, занятый ДРУГИМ контейнером (на macOS/Windows ss его не видит)
+docker_busy() {
   local p="$1"
   docker ps --format '{{.Ports}}' 2>/dev/null | grep -qE "[:.]${p}->"
 }
 
-say "Проверка свободности портов"
-P_HTTP="${http_port:-80}"; P_APP="${app_port:-8080}"
-P_AUTH="${radius_auth:-1812}"; P_ACCT="${radius_acct:-1813}"
-for p in "$P_HTTP" "$P_APP"; do
-  port_busy_tcp "$p" && die "порт tcp/$p занят процессом хоста (--http-port/--app-port, или: sudo ss -ltnp | grep :$p)"
-  docker_busy "$p" && die "порт tcp/$p занят другим контейнером (docker ps --format '{{.Ports}}' | grep $p)"
-done
+say "Проверка портов"
+P_APP="${app_port:-8080}"
+P_HTTP="${http_port:-80}"
+P_AUTH="${radius_auth:-1812}"
+P_ACCT="${radius_acct:-1813}"
+
+# Авто-подбор веб-порта, если дефолтный занят
+if port_busy_tcp "$P_APP" || docker_busy "$P_APP"; then
+  if [[ -n "$app_port" ]]; then
+    die "Указанный порт --app-port $P_APP занят на хосте"
+  fi
+  warn "Порт tcp/$P_APP занят другим сервисом. Ищу свободный порт..."
+  while port_busy_tcp "$P_APP" || docker_busy "$P_APP"; do
+    P_APP=$((P_APP + 1))
+  done
+  say "Веб-интерфейс будет запущен на свободном порту :$P_APP"
+fi
+
+if port_busy_tcp "$P_HTTP" || docker_busy "$P_HTTP"; then
+  if [[ -n "$http_port" ]]; then
+    die "Указанный порт --http-port $P_HTTP занят на хосте"
+  fi
+  warn "Порт tcp/$P_HTTP (HTTP) занят существующим веб-сервером хоста."
+  # Назначаем запасной или отключаем конфликтный биндинг
+  P_HTTP=$((P_APP + 100))
+  while port_busy_tcp "$P_HTTP" || docker_busy "$P_HTTP" || [[ "$P_HTTP" == "$P_APP" ]]; do
+    P_HTTP=$((P_HTTP + 1))
+  done
+  say "Резервный HTTP-порт перенаправлен на :$P_HTTP"
+fi
+
 for p in "$P_AUTH" "$P_ACCT"; do
   { port_busy_udp "$p" || docker_busy "$p"; } && warn "udp/$p занят — RADIUS-порты можно сменить (--radius-auth/--radius-acct)"
 done
-if [[ "$P_HTTP" == "$P_APP" ]]; then die "--http-port и --app-port совпадают ($P_HTTP)"; fi
-if [[ "$P_HTTP" -lt 1024 || "$P_APP" -lt 1024 ]] && [[ "$(id -u)" != "0" ]] && [[ "$(uname)" == "Linux" ]]; then
-  warn "порт <1024 без root: docker обычно справляется через capabilities, при ошибке bind — sudo или порт ≥1024"
-fi
 
 # ---------- осиротевший volume прошлой установки ----------
-# Проект compose = имя каталога; volume БД переживает down и даже удаление
-# каталога. Свежий .env + старый volume = вечный SASL-отказ (именно это
-# ловили на живом сервере). На свежей установке без .env наличие volume —
-# стоп с двумя выходами: вернуть старый .env или --fresh (снести БД).
 proj_name="$(basename "$PWD")"
 vol_db="${proj_name}_twofa_pgdata"
 have_env=0; [[ -f "$env_file" && -s "$env_file" ]] && have_env=1
@@ -116,18 +183,15 @@ if [[ "$have_env" -eq 0 ]] && docker volume inspect "$vol_db" >/dev/null 2>&1; t
   else
     die "Найдена БД прошлой установки (volume $vol_db), а $env_file с её паролем — нет.
     Варианты:
-      a) перенесите сюда СТАРЫЙ .env той установки (данные сохранятся);
-      b) данные не нужны: ./install.sh --fresh  (БД будет пересоздана с нуля);
-      c) своё имя каталога = отдельный проект docker (volume не пересечётся)."
+      a) перенесите сюда старый .env (данные сохранятся);
+      b) начать с чистого листа: ./install.sh --fresh  (БД будет пересоздана);
+      c) запустить в другой папке (создастся отдельный проект docker)."
   fi
 fi
 
-# ---------- пароли ----------
-say "Пароли"
+# ---------- пароли и .env ----------
+say "Настройка окружения"
 gen_pass() {
-  # Обе ветки читают КОНЕЧНЫЙ вход и собирают вывод через $( ) — под
-  # set -o pipefail бесконечный /dev/urandom + head даёт SIGPIPE(141)
-  # и убивал бы скрипт; буфер 512 байт даёт ~124 alnum-символа.
   local s=""
   if command -v openssl >/dev/null 2>&1; then
     s="$(openssl rand -base64 48 | tr -d '/+=')"
@@ -136,107 +200,112 @@ gen_pass() {
   fi
   printf '%s' "${s:0:28}"
 }
+
 if [[ -f "$env_file" ]] && grep -q '^TWOFA_PG_PASSWORD=' "$env_file"; then
-  say "Найден $env_file — пароль БД переиспользуется (смена пароля = потеря базы)"
-  # Пароль в shell не читается: compose получает его сам через --env-file.
-  # Исполнение .env через source убрано — произвольное содержимое файла
-  # не должно выполняться как код.
+  say "Найден существующий $env_file — пароль БД сохранён"
 else
   if [[ -n "$pg_password" ]]; then
-  # Пароль пишется в .env без кавычек и позже читается compose: разрешаем
-  # только символы, безопасные одновременно для keyword-DSN pgx (без ')
-  # и для shell/compose-интерполяции (без $ ` ; & | < > \ " и пробелов).
-  [[ "$pg_password" =~ ^[A-Za-z0-9!@#%^*+=:,._~-]+$ ]] \
-    || die "--set-password: допустимы буквы, цифры и символы ! @ # % ^ * + = : , . _ - ~ (кавычки, \$, пробелы и прочие спецсимволы запрещены)"
-else
-  pg_password="$(gen_pass)"
-fi
+    [[ "$pg_password" =~ ^[A-Za-z0-9!@#%^*+=:,._~-]+$ ]] \
+      || die "--set-password: недопустимые спецсимволы в пароле"
+  else
+    pg_password="$(gen_pass)"
+  fi
   printf 'TWOFA_PG_PASSWORD=%s\n' "$pg_password" > "$env_file"
   chmod 600 "$env_file"
-  say "Сгенерирован пароль PostgreSQL и сохранён в $env_file (chmod 600)"
+  say "Сгенерирован надежный пароль БД и сохранён в $env_file"
 fi
-chmod 600 "$env_file"   # и для переиспользуемого .env (мог быть создан вне скрипта)
+chmod 600 "$env_file"
 
-# Установка по Quick Start — пустая папка без git-репозитория: если она
-# позже им станет, секреты не должны уехать в коммит. .gitignore ниже
-# дополняется только недостающими строками.
 ensure_gitignore() {
   local gi=".gitignore" entry
   touch "$gi"
   local entries=(
-    "# Секреты и артефакты install.sh — никогда не коммитить"
     ".env" "*.bak" "ap2.txt" "admin_password.txt" "admin_recovery_codes.txt" "config.yaml"
   )
   for entry in "${entries[@]}"; do
     grep -qxF "$entry" "$gi" || printf '%s\n' "$entry" >> "$gi"
   done
-  return 0
 }
 ensure_gitignore
-[[ -n "$image_tag" ]] && printf 'TWOFA_IMAGE_TAG=%s\n' "$image_tag" >> "$env_file"
-# Порты в .env — compose подставляет их сам (дефолты в docker-compose.yml).
-# 80 и 8080 оба ведут на web-порт контейнера: 80 — для ACME/plain-прокси,
-# 8080 — прямое обращение. Повторный запуск обновляет значения (не дублирует).
-upsert_env() { # key value
+
+upsert_env() {
   if grep -q "^$1=" "$env_file" 2>/dev/null; then
     sed -i.bak "s|^$1=.*|$1=$2|" "$env_file" && rm -f "$env_file.bak"
   else
     printf '%s=%s\n' "$1" "$2" >> "$env_file"
   fi
 }
+
 upsert_env LIG_HTTP_PORT   "$P_HTTP"
 upsert_env LIG_APP_PORT    "$P_APP"
 upsert_env LIG_RADIUS_AUTH "$P_AUTH"
 upsert_env LIG_RADIUS_ACCT "$P_ACCT"
-[[ -n "$image_tag" ]] && { upsert_env TWOFA_IMAGE_TAG "$image_tag"; say "Версия образа закреплена: $image_tag"; }
+[[ -n "$image_tag" ]] && { upsert_env TWOFA_IMAGE_TAG "$image_tag"; say "Версия образа: $image_tag"; }
 
 # ---------- развёртывание ----------
-dc() { docker compose --env-file "$env_file" -f "$compose_file" "$@"; }
+dc() { $DC_CMD --env-file "$env_file" -f "$compose_file" "$@"; }
 
-say "Pull образов"
-dc pull --quiet
+say "Загрузка Docker-образов"
+dc pull
 
-say "Запуск (db → ligament)"
+say "Запуск сервисов Ligament (PostgreSQL + Core)"
 dc up -d
 
-# ---------- здоровье ----------
-probe_port="${P_APP}"
-[[ -n "$app_port" ]] || probe_port="$P_HTTP"
-say "Ожидание /healthz на :$probe_port (до 120с)"
+# ---------- ожидание запуска ----------
+say "Ожидание готовности сервера (/healthz на :$P_APP)..."
 ok=""
-for _ in $(seq 1 60); do
-  if curl -fsS -m 3 "http://127.0.0.1:${probe_port}/healthz" >/dev/null 2>&1; then ok=1; break; fi
+for _ in $(seq 1 45); do
+  if curl -fsS -m 2 "http://127.0.0.1:${P_APP}/healthz" >/dev/null 2>&1 || \
+     curl -fsS -m 2 "http://127.0.0.1:${P_HTTP}/healthz" >/dev/null 2>&1; then
+    ok=1
+    break
+  fi
   sleep 2
 done
+
 if [[ -z "$ok" ]]; then
-  warn "healthz не ответил — смотри: dc logs twofa | tail -50"
-  if dc logs twofa 2>/dev/null | tail -50 | grep -q "password authentication failed"; then
-    warn "Пароль БД не совпадает с volume twofa_pgdata (пароль из старого .env потерян?)."
-    warn "  Верните старый .env, либо (данные не нужны):"
-    warn "    cd \"$PWD\" && docker compose --env-file .env -f docker-compose.yml down -v && rm -f .env && ./install.sh --fresh"
-  fi
+  warn "healthz не ответил вовремя. Проверяем логи контейнеров:"
+  dc logs --tail=40 twofa || true
   dc ps
   exit 1
 fi
-host_hint="$(hostname 2>/dev/null || echo localhost)"
-say "Сервер здоров: http://${host_hint}:${probe_port}/healthz → ok"
 
-# ---------- админ-доступ ----------
-say "Извлечение учётных данных администратора"
+# ---------- извлечение учетных данных ----------
+say "Извлечение пароля администратора"
 cid="$(dc ps -q twofa)"
-for f in admin_password.txt admin_recovery_codes.txt; do
-  if docker cp "$cid:/home/nonroot/$f" "./$f" 2>/dev/null; then
-    chmod 600 "./$f"
-    say "→ ./$f (chmod 600)"
-  else
-    warn "$f недоступен (первые 2 минуты после старта; повторите: docker cp $cid:/home/nonroot/$f .)"
+
+for _ in $(seq 1 15); do
+  if docker cp "$cid:/home/nonroot/admin_password.txt" "./admin_password.txt" 2>/dev/null; then
+    chmod 600 "./admin_password.txt"
+    break
   fi
+  sleep 1
 done
 
+docker cp "$cid:/home/nonroot/admin_recovery_codes.txt" "./admin_recovery_codes.txt" 2>/dev/null \
+  && chmod 600 "./admin_recovery_codes.txt" || true
+
+server_ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
+[[ -z "$server_ip" ]] && server_ip="$(hostname 2>/dev/null || echo localhost)"
+
+admin_pass="см. ./admin_password.txt"
+if [[ -f "./admin_password.txt" ]]; then
+  admin_pass="$(cat ./admin_password.txt | tr -d '\r\n')"
+fi
+
 echo
-say "Готово. Дальше:"
-echo "  1) Откройте http://<адрес>:${probe_port} — логин admin, пароль из ./admin_password.txt"
-echo "  2) ./admin_recovery_codes.txt — 5 одноразовых кодов восстановления (сохраните в сейф!)"
-echo "  3) Админка → Лицензия: загрузите файл лицензии (или спросите код активации хоста)"
-echo "  4) Порты: web ${P_HTTP}/${P_APP}, RADIUS ${P_AUTH}/${P_ACCT} (udp); PostgreSQL опубликован ВНУТРИ сети docker"
-echo "  5) Обновление: ./install.sh --tag vX.Y.Z (данные в volume twofa_pgdata не тронуты)"
+printf '\033[1;32m═══════════════════════════════════════════════════════════════════════\033[0m\n'
+printf '  \033[1;32m✔ Установка Ligament 2FA успешно завершена!\033[0m\n'
+printf '\033[1;32m═══════════════════════════════════════════════════════════════════════\033[0m\n'
+printf '  \033[1mURL панели управления:\033[0m \033[1;36mhttp://%s:%s\033[0m\n' "$server_ip" "$P_APP"
+if [[ "$P_HTTP" != "$P_APP" && "$P_HTTP" != "80" ]]; then
+  printf '  \033[1mДополнительный HTTP:\033[0m   \033[1;36mhttp://%s:%s\033[0m\n' "$server_ip" "$P_HTTP"
+fi
+printf '  \033[1mЛогин:\033[0m                 \033[1;33madmin\033[0m\n'
+printf '  \033[1mПароль администратора:\033[0m \033[1;32m%s\033[0m\n' "$admin_pass"
+printf '\033[1;32m───────────────────────────────────────────────────────────────────────\033[0m\n'
+printf '  • Пароль сохранён в:        \033[1m./admin_password.txt\033[0m\n'
+printf '  • Коды восстановления:      \033[1m./admin_recovery_codes.txt\033[0m (5 шт)\n'
+printf '  • Настройки и секреты БД:   \033[1m./.env\033[0m\n'
+printf '\033[1;32m═══════════════════════════════════════════════════════════════════════\033[0m\n'
+echo
