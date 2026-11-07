@@ -59,7 +59,13 @@ say "Проверка зависимостей"
 command -v docker >/dev/null || die "docker не найден: установите Docker (https://docs.docker.com/engine/install/)"
 docker compose version >/dev/null 2>&1 || die "docker compose (v2 plugin) не найден"
 docker info >/dev/null 2>&1 || die "docker-демон недоступен (запущен ли сервис? права группы docker?)"
-[[ -f "$compose_file" ]] || die "не найден $compose_file — запускайте из корня репозитория ligament"
+
+if [[ ! -f "$compose_file" ]]; then
+  say "$compose_file не найден в текущей папке, скачиваю с GitHub..."
+  command -v curl >/dev/null || die "curl не найден для загрузки $compose_file"
+  curl -fsSL "https://raw.githubusercontent.com/aligorov/ligament/main/docker-compose.yml" -o "$compose_file" \
+    || die "не удалось скачать $compose_file с GitHub"
+fi
 
 # ---------- порты ----------
 port_busy_tcp() {
