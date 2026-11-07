@@ -312,16 +312,8 @@ check_and_setup_mirrors() {
     return 0
   fi
 
-  if [[ "$force_mirrors" -eq 1 ]]; then
-    setup_docker_mirrors
-    return 0
-  fi
-
-  # Проверка прямого ответа Docker Hub (таймаут 3с)
-  if ! curl -s -m 3 -I "https://registry-1.docker.io/v2/" 2>/dev/null | grep -qE "401|200"; then
-    warn "Docker Hub напрямую не отвечает (таймаут/блокировка в РФ)"
-    setup_docker_mirrors
-  fi
+  say "Зеркала Docker не настроены. Автоматически подключаю быстрые зеркала для загрузки..."
+  setup_docker_mirrors
 }
 
 # ---------- развёртывание ----------
