@@ -164,11 +164,12 @@ flowchart TB
 
 Установка выполняется одной командой. Скрипт сам определит окружение, проверит системные требования, подберёт свободные порты, при необходимости настроит зеркала Docker Hub для РФ и запустит платформу.
 
-### 🚀 Автоматическая установка (Рекомендуется)
+### 🚀 Быстрая установка
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/aligorov/ligament/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/aligorov/ligament/main/install.sh -o install.sh && bash install.sh
 ```
+*(Или в одну строку через пайп: `curl -fsSL https://raw.githubusercontent.com/aligorov/ligament/main/install.sh | bash`)*
 
 ### 💻 Интерактивное TUI-меню
 

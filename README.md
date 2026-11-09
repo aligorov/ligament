@@ -164,11 +164,12 @@ flowchart TB
 
 Install with a single command. The installer detects the environment, checks hardware requirements, resolves port conflicts, configures Docker Hub registry mirrors if necessary, and deploys the stack.
 
-### 🚀 Automated 1-Line Installation (Recommended)
+### 🚀 Quick Installation
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/aligorov/ligament/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/aligorov/ligament/main/install.sh -o install.sh && bash install.sh
 ```
+*(Or single-line pipe: `curl -fsSL https://raw.githubusercontent.com/aligorov/ligament/main/install.sh | bash`)*
 
 ### 💻 Interactive TUI Terminal
 
