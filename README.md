@@ -1,26 +1,29 @@
 <div align="center">
 
-# 🛡️ Ligament Enterprise MFA & 2FA Platform
+# 🛡️ Ligament Enterprise Platform
 
-**Autonomous on-premise multi-factor authentication for enterprise infrastructure**
+**Autonomous On-Premise Multi-Factor Authentication (MFA/2FA), Secure Communications & Access Control Suite**
 
 [![Release](https://img.shields.io/github/v/release/aligorov/ligament-apps?label=Client%20Release&color=indigo)](https://github.com/aligorov/ligament-apps/releases)
-[![Docker Image](https://img.shields.io/badge/docker-aligorov%2Fligament__2fa-blue?logo=docker)](https://hub.docker.com/r/aligorov/ligament_2fa)
-[![Architecture](https://img.shields.io/badge/arch-amd64%20%7C%20arm64-success)]()
-[![Platform](https://img.shields.io/badge/platform-Self--Hosted%20%7C%20On--Premise-blueviolet)]()
-[![Security](https://img.shields.io/badge/Zero--Trust-Compliant-brightgreen)]()
+[![Docker Hub](https://img.shields.io/badge/docker-aligorov%2Fligament__2fa-blue?logo=docker)](https://hub.docker.com/r/aligorov/ligament_2fa)
+[![Architecture](https://img.shields.io/badge/arch-x86__64%20%7C%20arm64-success)]()
+[![Platform](https://img.shields.io/badge/deployment-Self--Hosted%20%7C%20On--Premise-blueviolet)]()
+[![Security](https://img.shields.io/badge/Zero--Trust%20%7C%20Air--Gapped-Ready-brightgreen)]()
+[![Russian OS](https://img.shields.io/badge/OS-Astra%20%7C%20RED%20OS%20%7C%20Alt%20Linux-red)]()
 [![License](https://img.shields.io/badge/license-Free%20%2F%20Commercial-blue)]()
 
-**English** • [Русский](README.ru.md)
+[Русский](README.ru.md) • **English**
 
-[Features](#-key-capabilities) •
-[Architecture](#-architecture) •
-[Plans & Comparison](#-pricing--editions-comparison) •
-[Free vs Demo](#-detailed-free-vs-demo-breakdown) •
-[How to Buy (USDT)](#-how-to-buy-a-license) •
-[Quick Start](#-quick-start-in-2-minutes) •
-[Client Apps](#-client-applications) •
-[Contacts](#-contacts)
+[📌 Overview](#-overview) •
+[🧩 7 Ecosystem Modules](#-7-core-ecosystem-modules) •
+[🏛️ Architecture](#-system-architecture) •
+[⚡ Quick Start](#-quick-start-in-2-minutes) •
+[🌐 Distributed Deployment](#-distributed-deployment-core--vps-ice--branch-relay) •
+[🔄 Updates & Maintenance](#-updates--zero-downtime-maintenance) •
+[📊 Requirements & Ports](#-system-requirements--port-matrix) •
+[📱 Client Applications](#-client-applications--enterprise-os-support) •
+[🔑 Editions & Licensing](#-editions--licensing) •
+[📬 Contacts](#-contacts)
 
 ---
 
@@ -28,469 +31,372 @@
 
 ## 📌 Overview
 
-**Ligament** (*ligamentum*, Latin for "connecting band") is an independent, completely self-hosted (On-Premise) multi-factor authentication (MFA / 2FA) platform designed for mission-critical corporate environments.
+**Ligament** (Latin: *binding ligament*) is an independent, sovereign, self-hosted (On-Premise) cybersecurity and identity platform combining enterprise multi-factor authentication (MFA / 2FA), corporate messaging, session recording with AI analysis, physical access control (PACS), and guard kiosk monitoring.
 
-Ligament seamlessly unifies your entire IT infrastructure under a single security umbrella:
-- 🖥️ **Windows Workstations & Servers (RDP / Physical Console with native Auto-Logon)**
-- 🌐 **Network Infrastructure & VPNs (MikroTik, Cisco, Fortinet, UniFi, OpenVPN, WireGuard)**
-- 🔑 **Internal Web Applications via Single Sign-On (OpenID Connect IdP)**
-- 🏢 **Branch Offices and Isolated Subnets via Ligament Relay Nodes**
-- 📣 **Employee Notifications — Notification Gateway API with verified contacts (messengers, SMS, Email, Voice)**
-- 👥 **Guests & contractors — temporary sponsored accounts (Wi-Fi, VPN, web)**
-- 📱 **Employee Workstations & Mobile Devices (iOS, Android, Windows, macOS, Linux)**
+The platform bridges together every tier of corporate infrastructure:
+- 🖥️ **Windows Workstations & Servers**: Native Credential Provider (LogonUI, RDP, console) with Auto-Logon and Number Matching.
+- 🌐 **Network Perimeter & VPN**: RADIUS (PAP, EAP-TTLS, PEAP) for MikroTik, Cisco, Fortinet, Check Point, OpenVPN, WireGuard.
+- 🔑 **Single Sign-On (SSO)**: OIDC (OpenID Connect) and SAML 2.0 Identity Provider for corporate portals and web apps.
+- 💬 **Secure Communications**: Enterprise E2E messenger and P2P WebRTC audio/video calls without external clouds.
+- 🎥 **Session Auditing**: Screen, call, and audio conference recording with AI transcription and summarization.
+- 🎫 **Incident Response**: Zero-Blob helpdesk & ticketing tied directly to session recordings and audit timelines.
+- 🏢 **Physical Security & PACS**: Gate/turnstile controller integration and Guard Kiosk monitor with anti-tailgating.
+- 📡 **Branch Autonomy**: Edge relay nodes for offline authentication and secure bastion access.
 
-> 🔒 **Secrets never leave your perimeter.** All databases, user credentials, secrets, audit logs, and master encryption keys remain exclusively on your dedicated servers. The platform has zero dependencies on external cloud vendors and operates reliably even in air-gapped environments without internet access.
+> 🔒 **Zero-Leakage & Air-Gapped Philosophy:**
+> Databases, Ed25519 cryptographic keys, tokens, biometric hashes, message threads, and video archives stay strictly within your perimeter. The platform is completely decoupled from foreign SaaS providers and operates smoothly in isolated air-gapped environments.
 
 ---
 
-## 🚀 Key Capabilities
+## 🧩 7 Core Ecosystem Modules
+
+Ligament is designed modularly: deploy everything as a unified **All-in-One** stack or distribute roles across separate hosts.
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                                LIGAMENT ENTERPRISE SUITE                               │
+├─────────────────────┬─────────────────────┬─────────────────────┬──────────────────────┤
+│ 🛡️ CORE (2FA / IAM) │ 💬 LIGAMENT CHAT    │ 🎥 LIGAMENT RECORDER│ 🎫 LIGAMENT TICKET   │
+│ MFA, SSO, RADIUS,   │ Corporate chat,     │ Session & call video│ Zero-Blob helpdesk,  │
+│ PACS, WebUI, Audit  │ P2P WebRTC calls    │ Ingest API, AI-work │ incident management  │
+├─────────────────────┼─────────────────────┼─────────────────────┴──────────────────────┤
+│ 🛡️ LIGAMENT GUARD   │ 📡 LIGAMENT RELAY   │ 🧊 LIGAMENT ICE                            │
+│ Guard Kiosk monitor,│ Branch edge agent,  │ Public STUN/TURN/TURNS media gateway       │
+│ anti-tailgating     │ offline 2FA cache   │ with automatic Let's Encrypt Certbot       │
+└─────────────────────┴─────────────────────┴────────────────────────────────────────────┘
+```
+
+### 1. 🛡️ Ligament Core (Platform Engine)
+* **Image:** `aligorov/ligament_2fa:latest` · **Ports:** `:8080` (WebUI/API), `:80` (HTTP), `:1812/udp` (RADIUS Auth), `:1813/udp` (RADIUS Acct).
+* **Role:** The brain of the platform. Manages identities, directories (Active Directory / OpenLDAP / Local), push notifications, TOTP tokens, FIDO2/WebAuthn hardware keys, OIDC/SAML IdP, hardware node-locking, and audit logging.
+* **Database:** Dedicated PostgreSQL 16 Alpine container with CSPRNG password isolation.
+
+### 2. 💬 Ligament Chat (Corporate Messenger)
+* **Image:** `aligorov/ligament_chat:latest` · **Port:** `:8097` (Web/WebSockets).
+* **Role:** End-to-end secure corporate messenger for desktop and mobile. Supports direct messages, channels, file sharing, and P2P WebRTC audio/video calls.
+* **Architecture Highlights:**
+  - **High-Water Mark:** Read markers stored without full-table writes ($O(1)$ complexity).
+  - **Unified SSO Realm:** Seamless login via Core Ed25519 SSO tickets (`aud: ligament-chat`).
+
+### 3. 🎥 Ligament Recorder (Media Server & AI Worker)
+* **Image:** `aligorov/ligament_recoder:latest` · **Port:** `:8095` (Ingest API).
+* **Role:** Captures audio/video streams of WebRTC calls, screen recordings, and remote help sessions. Features an embedded AI worker for speech-to-text transcription, meeting summaries, and audio search.
+* **Architecture Highlights:**
+  - **Zero-ENV:** Secret leak protection through environment rejection. Peer authentication via Unix domain socket.
+  - **Durable ACK:** Frame acknowledgement only after transactional persistence.
+
+### 4. 🎫 Ligament Ticket (Helpdesk & Incident Response)
+* **Image:** `aligorov/ligament_ticket:latest` · **Port:** `:8096` (HTTP).
+* **Role:** Helpdesk and incident tracking system.
+* **Architecture Highlights:**
+  - **Zero-Blob Architecture:** Never stores heavy binary blobs in its database. Media files link to `media_id UUID` stored inside Ligament Recorder.
+
+### 5. 🛡️ Ligament Guard (Guard Kiosk Monitor)
+* **Image:** `aligorov/ligament_guard:latest` · **Port:** `:8090` (HTTP/SSE).
+* **Role:** Kiosk interface tailored for security guards at facility gates and turnstiles.
+* **Capabilities:**
+  - Real-time Server-Sent Events (SSE) passage stream.
+  - Turnstile passage deduplication and anti-tailgating detection.
+  - Photo prefetching from Core database with 2FA badge indicators.
+
+### 6. 📡 Ligament Relay (Branch Edge Agent)
+* **Image:** `aligorov/ligament-relay:latest` · **Ports:** `:8082` (HTTP), `:1812/udp` (RADIUS), `:5353/udp` (mDNS).
+* **Role:** Deployed at remote branch offices or isolated subnets. Caches 2FA hashes locally to authenticate Wi-Fi/VPN users during internet outages. Functions as an obfuscated blind-pipe bastion (compiled with Garble Tiny).
+
+### 7. 🧊 Ligament ICE (WebRTC STUN/TURN/TURNS Media Gateway)
+* **Image:** `coturn:4.6.2-alpine` + `certbot:latest` · **Ports:** `:3478` (STUN/TURN), `:443` (TURNS TLS), `:49152-49250/udp` (Relay).
+* **Role:** Deployed on an external public VPS with a public IP. Transits WebRTC audio/video calls across corporate Symmetric NATs and mobile carriers.
+* **Auto-SSL:** Automated Certbot container acquires and auto-renews Let's Encrypt TLS certificates every 12 hours.
+
+---
+
+## 🏛️ System Architecture
 
 ```mermaid
-flowchart LR
-    U["👤 Сотрудники,<br/>устройства, филиалы"]
+flowchart TB
+    subgraph Clients["📱 Workstations & Endpoints"]
+        WIN["🪟 Windows Workstation / Server<br/>(Credential Provider + Auto-Logon)"]
+        MOB["📱 Smartphones (Android / iOS)<br/>Ligament Authenticator & Chat"]
+        LIN["🐧 Linux Desktops<br/>(Astra / RED OS / Alt / Ubuntu)"]
+        WEB["🌐 Corporate Web Apps<br/>(OIDC / SAML SSO Portal)"]
+    end
 
-    subgraph Entries["🔐 Точки входа"]
+    subgraph EdgeBranch["🏢 Remote Branch / Facility"]
+        RELAY["📡 Ligament Relay<br/>(Offline 2FA Cache + RADIUS :1812)"]
+        WIFI["📶 Branch Wi-Fi 802.1X"]
+        WIFI -.-> RELAY
+    end
+
+    subgraph CentralHub["🏢 Main Datacenter / Central Server (/opt/ligament)"]
         direction TB
-        CP["🪟 Windows Logon / RDP<br/>(Credential Provider)"]
-        RAD["📡 RADIUS<br/>VPN · Wi-Fi 802.1X"]
-        SSO["🔑 OIDC · SAML IdP<br/>MFA-прокси"]
-        BAS["🖥️ Бастион<br/>Web-SSH · RDP"]
+        CORE["⚙️ Ligament Core 2FA (:8080)<br/>Policies · RADIUS · SSO · PACS"]
+        DB[("🗄️ Core DB<br/>PostgreSQL 16")]
+        CORE <--> DB
+
+        subgraph MediaStack["Media & Communications Stack"]
+            CHAT["💬 Ligament Chat (:8097)<br/>Messenger · Signaling"]
+            REC["🎥 Ligament Recorder (:8095)<br/>Ingest API · AI Worker"]
+            TICK["🎫 Ligament Ticket (:8096)<br/>Zero-Blob Helpdesk"]
+            GUARD["🛡️ Ligament Guard (:8090)<br/>Guard Kiosk Monitor"]
+            MDB[("🗄️ Media DB<br/>Unix Socket")]
+            CHAT & REC & TICK <--> MDB
+        end
+
+        CORE <==>|Ed25519 SSO Tickets| CHAT
+        CHAT -->|Call Media Stream| REC
+        TICK -.->|Media UUID Links| REC
+        CORE -->|PACS Gate Events| GUARD
     end
 
-    CORE["⚙️ Ligament Core<br/>аутентификация · адаптивные политики<br/>аудит · fail2ban · роли · мониторинг"]
-
-    subgraph Factors["📲 Подтверждение вторым фактором"]
-        direction TB
-        F1["📲 Push + number-matching<br/>(приложения, PWA)"]
-        F2["🤖 Боты-мессенджеров<br/>Telegram · eXpress · MAX · Slack…"]
-        F3["🕒 TOTP · HOTP"]
-        F4["🔑 Passkeys · YubiKey"]
-        F5["✉️ Email · SMS · 📞 голос"]
+    subgraph PublicCloud["☁️ External VPS (Public White IP)"]
+        ICE["🧊 Ligament ICE (Coturn + Certbot)<br/>STUN :3478 · TURNS TLS :443<br/>Auto Let's Encrypt Renewal"]
     end
 
-    REL["⚡ Relay-узлы филиалов<br/>автономная 2FA при обрыве канала"]
-
-    U --> Entries --> CORE --> Factors
-    CORE <-.-> REL
+    WIN & MOB & LIN & WEB <==>|Authentication & API| CORE
+    RELAY <==>|Periodic Sync| CORE
+    MOB <==>|P2P Audio/Video NAT Traversal| ICE
+    CHAT <==>|ICE Call Candidates| ICE
 ```
-
-### 1. 🪟 Windows Logon & RDP 2FA (Credential Provider)
-- **Native Logon Tile**: Direct integration into Windows LogonUI for console and Remote Desktop (RDP) sessions on Windows 10, 11, and Windows Server 2016–2025.
-- **⚡ Instant Auto-Logon**: As soon as the user approves the 2FA prompt on their smartphone (in the app or Telegram), Windows **automatically completes the login** — no need to click the arrow button or press Enter.
-- **🔢 Number Matching**: Protection against Push Bombing and Push Fatigue attacks. A verification number is displayed on the Windows RDP login tile, and the user must type or match this exact number in the mobile app.
-- **🛡️ UAC Elevation 2FA**: the second factor is also requested when privileges are elevated (User Account Control consent prompts) — a push with number matching or a TOTP code at the exact moment an application demands administrator rights, not only at logon.
-- **🧭 Over-the-Shoulder Approval**: when a standard user types an administrator's credentials into a UAC prompt, the approval request is routed to that administrator's phone — not to the person at the keyboard.
-- **🔑 FIDO2 / Passkeys on Login Screen**: Scan a dynamic QR code on the login tile with a mobile camera (biometric Face ID / Touch ID) or tap a hardware YubiKey directly at the Windows login screen.
-- **Fail-Open / Fail-Close Policies**: Configure whether users should be blocked or allowed with password-only if the 2FA server becomes unreachable over the network.
-- **Emergency Bypass Whitelist**: Configurable break-glass local accounts to ensure administrators never get locked out.
-- **Enterprise Deployment**: Silent MSI installer with `SERVERURL` parameter and Active Directory Group Policy (GPO / ADMX) administrative templates.
-
-### 2. 📡 Enterprise Network RADIUS Server
-- **Protocol Support**: PAP, EAP-TTLS/PAP, PEAP/MS-CHAPv2, RADIUS Accounting.
-- **Universal Hardware Compatibility**: MikroTik RouterOS, Cisco ASA / IOS, Fortinet FortiGate, Ubiquiti UniFi, Check Point, Huawei, Keenetic.
-- **Corporate Wi-Fi (802.1X)**: WPA2/WPA3 Enterprise for secure authentication of corporate laptops and mobile devices.
-- **VPN Gateways**: L2TP/IPsec, SSTP, OpenVPN, IKEv2, WireGuard, PPPoE.
-- **⏳ Push Holding**: RADIUS engine holds the challenge session while the user responds to the push request on their phone.
-- **Device Trust Window** *(Demo & Commercial)*: Configurable grace period (e.g. 8 hours or 7 days) during which verified devices can reconnect without re-prompting for 2FA.
-- **Vendor-Specific Attributes (VSA)**: Dynamic authorization and group attribute assignment for network access control.
-- **UniFi Multi-Site**: ready-made Ubiquiti UniFi controller integration (RADIUS / 802.1X across multiple sites) — enterprise Wi-Fi for distributed networks out of the box.
-
-### 3. 🔑 Single Sign-On (OIDC + SAML IdP) & MFA Proxy *(Demo & Commercial)*
-- **Built-in OpenID Connect Provider**: Complete identity provider capabilities without requiring a heavyweight external Keycloak instance.
-- **Built-in SAML 2.0 IdP**: Sign internal apps with RSA-SHA256 assertions (POST-binding) — for services without OIDC support.
-- **MFA Proxy (forward-auth)**: Protect **any** web service in one line — nginx `auth_request` / Traefik `forwardAuth` call Ligament, authenticated users get `X-Auth-User`/`X-Auth-Role` headers, guests are redirected to login. Your existing apps get MFA without code changes.
-- **Standards Compliant**: Discovery (`/.well-known/openid-configuration`), JWKS (RS256), PKCE (RFC 7636) for mobile and single-page apps.
-- **Application Catalog**: Built-in Launchpad portal and user consent screens.
-- **SAML Apps in the Launchpad**: catalog entries can launch external services via IdP-initiated SAML SSO (e.g. a corporate password vault) — one click after Ligament MFA, without ever touching the target app's own login page.
-- **Seamless Integration**: Ready-to-use protection for Nextcloud, GitLab, 1C:Enterprise, Proxmox VE, Grafana, Portainer, Zabbix, BookStack, and custom enterprise web portals.
-
-### 4. ⚡ Branch Office Nodes (Ligament Relay) *(Demo & Commercial)*
-- **Branch Architecture**: Deploy lightweight Relay agents to remote offices, satellite branches, or isolated DMZ zones.
-- **Offline Resilience**: Local authentication cache preserves login capabilities during WAN or internet outages.
-- **Encrypted Tunnels**: Persistent, encrypted WebSocket connection with automated user credential sync.
-- **Bastion Tunneling**: The Relay node carries Web-SSH and RDP bastion sessions to routers and servers of its local branch network as an encrypted "blind pipe" — isolated branch LANs become reachable from the core without VPN, while the Relay itself cannot read the traffic.
-
-### 5. 📲 Full Spectrum of Verification Factors
-| Factor | Description | Highlights |
-|---|---|---|
-| **App Push** | Push notification to mobile/desktop app | Number matching, biometric unlock, Zero-Trust metadata |
-| **Telegram Bot** | Interactive inline buttons in Telegram | Instant delivery, emergency «❌ Not Me!» button with red alert 🚨 |
-| **Passkeys / WebAuthn** | FIDO2 / Passkeys / WebAuthn | Phishing-resistant, hardware YubiKey, Windows Hello, Face ID |
-| **TOTP Codes** | Time-based OTP generator (RFC 6238) | Google Authenticator, 2FAS, Microsoft Authenticator, Yandex Key |
-| **Backup Codes** | One-time scratch recovery codes | Emergency access recovery if primary device is unavailable |
-| **Email & SMS** | One-time codes delivered via email or SMS | Configurable multi-language templates, pre-configured SMS gateways |
-| **Voice Calls (TTS)** | Code delivered by phone call | For users without smartphones / poor eyesight |
-| **HOTP** | Counter-based OTP (RFC 4226) | Hardware tokens and desktop authenticators |
-| **PWA Authenticator** | Browser app `/app` — install to Home Screen | Web Push on iOS (no App Store needed), TOTP, passkeys, SOS |
-| **Corporate messengers** | eXpress, MAX, VK Teams, Slack, Mattermost, Discord, VK | Approval buttons + full self-service cabinet via `/menu` (devices, sessions, history) |
-
-### 6. 🆘 Integrated Remote Assistance (SOS Console) *(Demo & Commercial)*
-- Direct help request button located directly on the Windows login screen (accessible without logging in).
-- Social engineering defense: Remote engineer connects only by matching a one-time visual code displayed on the user's screen.
-- **WebRTC remote-control console**: screen viewing and full remote control (keyboard & mouse) — the requester chooses "view-only" or "control" mode when requesting help; chat and file exchange right in the operator's browser, no third-party software (AnyDesk, TeamViewer).
-
-```mermaid
-flowchart LR
-    U["👤 Пользователь<br/>браузер на экране входа"]
-    O["🛠️ Инженер поддержки<br/>браузер оператора"]
-
-    subgraph CORE["⚙️ Ligament Core — только сигналинг"]
-        SIG["контрольный код · согласие · аудит"]
-    end
-
-    U -- "1. Запрос SOS — контрольный код на экране" --> SIG
-    O -- "2. Ввод кода + MFA оператора" --> SIG
-    U -- "3а. Экран пользователя (видеопоток)" --> O
-    O -- "3б. Управление: клавиатура · мышь · чат · файлы" --> U
-```
-
-> Медиа идут напрямую между браузерами (P2P, DTLS-SRTP) — сервер участвует только в сигналинге и не видит содержимое сессии.
-
-### 7. 🖥️ Bastion: Web-SSH & RDP Forwarding *(Demo & Commercial)*
-- Admins/operators connect to network equipment and servers **through the browser** — Ligament becomes the single entry point: SSO of Ligament itself + 2FA, per-user ACL to targets, host-key TOFU pinning.
-- **RDP Forwarding**: Windows desktops from the very same browser — the RDP session is tunneled through the bastion without exposing port 3389, with the same ACLs, session recording and 2FA; targets behind a branch Relay work exactly like SSH.
-- Session recording (output-only), 30-second access re-validation, brute-force limits per user+target. No VPN/jump-host software for engineers — just a browser.
-- **Branch LANs via Relay**: a target can be attached to a branch Relay node — SSH and RDP sessions are tunneled through it to devices in isolated office networks that are unreachable from the datacenter directly.
-
-```mermaid
-flowchart LR
-    E["👨‍💻 Инженер<br/>браузер"]
-
-    subgraph CORE["⚙️ Ligament Core (SSO + 2FA)"]
-        direction TB
-        GATE["WebSocket-шлюз:<br/>ACL · запись сессий · ревалидация 30 с"]
-    end
-
-    SSH["🖥️ Сервер / маршрутизатор<br/>SSH :22"]
-    RDP["🪟 Windows-хост<br/>RDP :3389"]
-
-    subgraph BRANCH["🏢 Филиал — изолированная сеть"]
-        direction TB
-        RELAY["⚡ Ligament Relay<br/>«слепая труба» — не читает трафик"]
-        DEV["🖱️ Оборудование филиала<br/>SSH :22 · RDP :3389"]
-    end
-
-    E -- "TLS · WebSocket" --> GATE
-    GATE -- "TCP :22" --> SSH
-    GATE -- "TCP :3389 — RDP-проброс" --> RDP
-    GATE <-.-> RELAY
-    RELAY --> DEV
-```
-
-### 8. 📣 Notification Gateway & Verified Contacts *(Demo & Commercial)*
-- **Ligament as the notification provider for your infrastructure**: a single REST call (`POST /api/v1/notify`) lets monitoring, ITSM and business systems deliver messages to employees through the channels they already use — Telegram, eXpress, MAX, VK Teams, Slack, Mattermost, Discord, VK, Email, SMS and Voice.
-- **Verified Contacts**: a delivery endpoint is bound to a user only after proof of ownership (messenger bot onboarding, confirmed email/phone) — API callers can never send to arbitrary addresses, only to the employee's verified contacts.
-- **User Consent**: each employee controls which of their channels may receive gateway notifications; consent state is stored server-side.
-- **Dispatcher & Delivery Log**: one API call fans out across all enabled channels of the recipient; every attempt is recorded in an immutable notification log (who sent, to whom, via which channel, delivery status) right in the admin console.
-- **Secure by default**: works with scoped API tokens and inherits the CIDR firewall, fail2ban and the full audit trail.
-
-### 9. 🛡️ Security Hardening, Roles & Monitoring
-- **Cryptographic Primitives**: Argon2id for password hashing, AES-256-GCM with AAD for database secrets, Ed25519 for license signatures, constant-time comparisons.
-- **Built-in CIDR Firewall & Fail2ban**: IP rate limiting, CIDR whitelists/blacklists, automatic temporary bans on brute-force attempts.
-- **Adaptive Policies**: per-group required/denied factors (e.g. «admins — passkey only»), time windows («office hours»), Geo-IP allow/deny lists.
-- **Multiple AD/LDAP Directories** *(Demo & Commercial)*: several directory servers united into one virtual «main»; users log in with whichever format they are used to — `user`, `DOMAIN\user`, or `user@domain`.
-- **Roles & API Tokens**: admin / operator / auditor; API tokens with fine-grained scopes. **Impersonation** with audit trail and one-time **break-glass** recovery codes.
-- **Monitoring**: Prometheus `/metrics`, health endpoint with build version, SIEM connector, event webhooks; admin notifications (license/expiring certs/fail spikes).
-- **Compliance-ready Audit**: immutable log, CSV export, printable **incident report** (timeline + summary) for regulators/ISB.
-- **LAN IP Awareness**: logins capture both external and internal (office subnet) IP — visible in login notifications, push cards, audit UI/CSV and the incident report, so "from home" vs "from the office LAN" is always distinguishable.
-- **Mandatory 2FA Policy**: Forced user onboarding preventing users from bypassing or deleting their only 2FA factor.
-- **Multi-language Support**: Automatic adaptation to the client's OS locale (8 languages: English, Russian, German, French, Spanish, Portuguese, Turkish, Chinese).
-
-### 10. 👥 Guest Access *(Demo & Commercial)*
-- **Temporary accounts**: contractors, interns and visitors get Wi-Fi, VPN and web-portal access without creating permanent employees in AD.
-- **Sponsored access**: an invitation is issued by an employee-sponsor; every guest action is attributed to the sponsor in the audit log.
-- **Auto-expiring lifetime**: an account lives for hours or days and is removed automatically; expired guests are purged in the background.
-- **Zero-onboarding sign-in**: a one-time code via QR invite or link — no app install and no full 2FA onboarding for the guest.
-- **Strict isolation**: dedicated groups and policies — a guest gets exactly what was explicitly allowed (e.g., the guest Wi-Fi SSID only).
-
----
-
-## 📊 Pricing & Editions Comparison
-
-### 🧭 Which edition is right for you?
-
-| Edition | For whom | Price | Users | Term |
-|---|---|---|---|---|
-| 🟢 **Free** | Homelabs, micro-teams, protecting admin accounts | **$0 forever** | up to 5 | Unlimited |
-| 🟡 **Demo** | Full evaluation of every enterprise feature | $0 | Unlimited | 30 days, bound to your server hardware → gracefully falls back to Free |
-| 🔵 **Subscription** | Production | **$2** / user / month | per seats | 3 / 6 / **13 months (13th free)** |
-| 🟣 **Perpetual** | Production, buy once | **$5** / user one-time | per seats | Forever |
-
-### ✅ Included in every edition (even Free)
-
-<details open>
-<summary><b>All 2FA factors, Windows logon, bots and the entire core — no paywalls on security basics</b></summary>
-
-- 📲 **Push with Number Matching** (mobile/desktop apps + **PWA with Web Push on iOS**)
-- 🔑 **Passkeys / WebAuthn / YubiKey**, TOTP & HOTP, backup codes
-- ✉️ **Email / SMS / Voice (TTS)** code delivery, corporate-messenger bots (Telegram, eXpress, MAX, VK Teams, Slack, Mattermost, Discord, VK) with self-service cabinet `/menu`
-- 🪟 **Windows Credential Provider**: RDP & console logon, Auto-Logon, QR passkeys, Fail-Open/Close policies, GPO/ADMX deployment
-- 📡 **RADIUS server**: VPN + Wi-Fi 802.1X (PAP, EAP-TTLS, PEAP), accounting, MikroTik config generator
-- 🛡️ CIDR firewall & fail2ban, immutable audit + CSV export, incident report
-- 🔐 **MFA proxy (forward-auth)** for nginx/Traefik, roles (admin/operator/auditor), API tokens, impersonation & break-glass
-- 📊 Prometheus `/metrics`, health endpoint, event webhooks, admin notifications
-
-</details>
-
-### 🚀 Enterprise add-ons *(unlocked in Demo & paid editions)*
-
-| Feature | 🟢 Free | 🟡 Demo | 🔵 Subscription | 🟣 Perpetual |
-|---|:---:|:---:|:---:|:---:|
-| **SSO Identity Provider — OIDC + SAML** (`sso`) | ❌ | ✅ | ✅ | ✅ |
-| **Active Directory / LDAP sync** (`ldap`) | ❌ | ✅ | ✅ | ✅ |
-| **RADIUS Device Trust Window** (`trust`) | ❌ 2FA every login | ✅ | ✅ | ✅ |
-| **Geo-IP access policies** (`geo`) | ❌ | ✅ | ✅ | ✅ |
-| **SOS Remote Assistance (WebRTC console)** (`support`) | ❌ | ✅ | ✅ | ✅ |
-| **Bastion: Web-SSH + RDP Forwarding** (`bastion`) | ❌ | ✅ | ✅ | ✅ |
-| **Guest Access (sponsored accounts)** (`guest`) | ❌ | ✅ | ✅ | ✅ |
-| **SIEM connector** (`siem`) | ❌ | ✅ | ✅ | ✅ |
-| **Notification Gateway + Verified Contacts** (`notify`) | ❌ | ✅ | ✅ | ✅ |
-| **Company Branding / White-Label** | ❌ | ✅ | ✅ | ✅ |
-| **Branch Relay nodes** (`relay`) | ❌ 0 nodes | ✅ unlimited | **$400** / node / term | **$1,000** / node one-time |
-
-> 💡 **Demo = 100% of features, unlimited users, zero registration.** After 30 days it degrades gracefully to Free — existing logins are never blocked.
-
----
-
-### 🥊 Competitor Comparison — Russian market
-
-| Capability | 🛡️ **Ligament** | Multifactor | IDEA MFA | ViPNet IAS | UserGate MFA |
-|---|---|---|---|---|---|
-| **Architecture** | **100% Self-Hosted (1 Docker)** | Hybrid (Vendor Cloud + On-Prem) | On-Prem / Cloud | On-Prem | On-Prem (UserGate hardware) |
-| **Free Tier** | **Up to 5 users forever** | None (Trial only) | None (Trial only) | None | None |
-| **Windows RDP 2FA** | **Yes (Auto-Logon + QR)** | Yes (Manual click) | Yes | Ecosystem components | Limited |
-| **Number Matching on Tile** | **Yes (Direct on screen)** | Yes | Yes | Yes | Yes |
-| **Branch Office Relay (Offline Cache)** | **Yes (Ligament Relay)** | Partial (Cloud required) | Yes (Distributed) | Yes (Complex PKI) | Central cluster only |
-| **Push + Telegram Bot** | **Yes (Both native)** | Yes (Telegram/App) | Yes | Yes | Yes |
-| **FIDO2 / Passkeys / YubiKey** | **Yes (Web & Windows Tile)** | Yes | Yes | Yes | Partial |
-| **Built-in OIDC SSO IdP** | **Yes (Self-Hosted in core)** | Cloud-mediated | Yes | Yes | Via platform |
-| **RADIUS + Device Trust** | **Yes (Per-user/group)** | Radius Adapter | Yes | Yes | Yes |
-| **SOS Console (WebRTC: view + control)** | **Yes (right on the login tile)** | None | None | None | None |
-| **Bastion: Web-SSH + RDP forwarding in the browser** | **Yes (ACLs, session recording, branches via Relay)** | None | None | None | None |
-| **Guest access (temporary sponsored accounts)** | **Yes (auto-expiring)** | None | None | None | None |
-| **Multi-Language Support** | **8 languages out-of-the-box** | RU / EN | RU | RU | RU |
-
-### 🌍 International Alternatives
-
-The global self-hosted MFA class (public list data, October 2026):
-
-| Capability | 🛡️ **Ligament** | RCDevs OpenOTP 🇱🇺 | privacyIDEA 🇩🇪 | Fortinet FortiAuthenticator 🇺🇸 | Cisco Duo 🇺🇸 |
-|---|---|---|---|---|---|
-| **Deployment** | **100% self-hosted — one Docker container** | Self-hosted (Linux suite) | Self-hosted (OSS, AGPL) | On-prem VM / appliance | **Cloud SaaS** (on-prem = proxy only) |
-| **Free tier** | **5 users forever** | 25 users | Community — unlimited | None | 10 users |
-| **Windows Logon / RDP 2FA** | **Yes (Auto-Logon + QR passkeys)** | Yes (own CP) | Yes (official plugin) | Yes (agent) | Yes (CP) |
-| **UAC elevation 2FA** | **Yes + approval goes to the admin** | Yes | Yes | Limited | Yes |
-| **Approve/deny in messengers (Telegram, corporate bots)** | **Yes — native, incl. self-service cabinet** | — | — | — | — |
-| **Push to PWA without an app store** | **Yes (Web Push incl. iOS)** | — | — | — | — |
-| **Push 2FA on Wi-Fi / VPN connect (RADIUS)** | **Yes — built-in RADIUS server** | Yes (RADIUS bridge) | Via FreeRADIUS plugin | Yes (FortiToken) | VPN only (via cloud proxy) |
-| **Built-in OIDC + SAML IdP** | **Yes (in the core)** | Partial | Via plugins | Yes (SAML) | Cloud SSO |
-| **Bastion: Web-SSH + RDP forwarding (browser + session recording)** | **Yes** | — | — | — | — |
-| **SOS remote assistance on the login screen (view + control)** | **Yes** | — | — | — | — |
-| **Guest access (auto-expiring sponsored accounts)** | **Yes** | — | — | — | — |
-| **Branch relay nodes (offline 2FA cache)** | **Yes (Ligament Relay)** | — | — | — | — |
-| **Entry price** | **$2/user/mo · $5 one-time** | ~€2.3/user/mo | Free (OSS) + paid support | Quote-based | $3–9/user/mo |
-
-> 📊 An independent market scan (October 2026; five segments: open-source, enterprise platforms, RADIUS-as-a-Service, Windows-logon MFA, bastions/PAM) found **no international vendor** that combines interactive messenger approvals, PWA-based push, a bundled Web-SSH/RDP bastion, an SOS console and guest access in one self-hosted product. The corporate Wi-Fi segment abroad has largely moved to certificate-based EAP-TLS (SecureW2, Keytos, RADIUSaaS) — Ligament deliberately keeps password-based EAP-TTLS/PEAP with live push approval, which is dramatically simpler and cheaper to operate in small and mid-size networks.
-
----
-
-## 🔍 Detailed Free vs Demo Breakdown
-
-### 🟢 What is included in the Free Version (Forever):
-> The Free edition is designed for homelabs, micro-teams, and protecting critical administrator accounts (strictly **up to 5 users**):
-
-1. **Windows Workstation & Server Protection**:
-   - Full Windows Credential Provider (Windows 10/11 & Windows Server RDP/Local).
-   - **Auto-Logon** capability (instant Windows login upon approval on mobile).
-   - **Number Matching** on the RDP tile against Push Bombing attacks.
-   - **Passkeys / QR code** login and **YubiKey** hardware tokens.
-   - Emergency break-glass bypass accounts and Fail-Open / Fail-Close policies.
-2. **All Core 2FA Factors**:
-   - Push notifications to Ligament Authenticator.
-   - Telegram bot (codes, interactive approval buttons, instant fraud alerts).
-   - TOTP authenticators (Google Authenticator, 2FAS, Microsoft Authenticator, etc.).
-   - Emergency backup recovery codes.
-   - Email (SMTP) and SMS one-time password delivery.
-3. **Core RADIUS Server**:
-   - VPN and Wi-Fi authentication (PAP, EAP-TTLS, PEAP).
-   - Push session holding.
-   - *Free edition note*: Device trust window (`trust`) is disabled — 2FA is required on every connection.
-4. **Administration & Security**:
-   - Web administration console and user self-service portal (`/me`).
-   - Integrated CIDR firewall and Fail2ban brute-force protection.
-   - Immutable audit log of all authentication attempts and administrative actions.
-   - Database backup export and import.
-
-### 🚫 What is gated in Free (Unlocked in Demo & Commercial):
-- 🔒 **OIDC / SSO Identity Provider (`sso`)**: External web apps cannot use Ligament as an SSO IdP (OIDC endpoints return `403 feature_not_licensed`).
-- 🔒 **Active Directory / LDAP Sync (`ldap`)**: Automated directory synchronization and AD password verification are disabled.
-- 🔒 **RADIUS Device Trust Window (`trust`)**: Verified devices cannot skip 2FA for N days/hours.
-- 🔒 **SOS Remote Assistance (`support`)**: Remote WebRTC assistance console (view and control) on the login screen is disabled.
-- 🔒 **Geo-IP Policies (`geo`)**: Geo-IP allow/deny login rules are disabled.
-- 🔒 **Web-SSH/RDP Bastion (`bastion`)**: Browser SSH and RDP consoles are disabled.
-- 🔒 **Guest Access (`guest`)**: Issuing guest invitations is disabled.
-- 🔒 **SIEM Connector (`siem`)**: Export to external SIEM is disabled.
-- 🔒 **Notification Gateway (`notify`)**: External systems cannot send messages to employees via verified contacts.
-- 🔒 **Branch Relay Nodes (`relay`)**: Remote branch office nodes are blocked (0 nodes permitted).
-- 🔒 **White-Label (`white-label`)**: Vendor branding cannot be customized.
-- 🔒 **User Capacity**: Strictly limited to 5 active users.
-
-### 🟡 What is included in the 30-Day Demo (Trial):
-- Issued **on request in one email**: send us your server's **Activation Code** (visible in the admin console) — you get a signed demo file in reply. No payment, no account registration. The file is **cryptographically bound to that exact server hardware** and can't be reused elsewhere.
-- **100% of Enterprise features unlocked**: OIDC SSO, Active Directory Sync, Device Trust Windows, SOS Assistance, the Web-SSH/RDP Bastion, Guest Access, Notification Gateway, Relay Nodes, and White-Labeling.
-- **Unlimited Users**: Test across your entire network with 100, 500, or 1000+ employees.
-- **Graceful degradation**: After 30 days, the server automatically transitions to Free mode (5 users). Existing logins **are never abruptly blocked**, while adding users beyond 5 requires a license.
-
----
-
-## 💳 How to Buy a License
-
-Commercial licenses are purchased transparently and securely using USDT cryptocurrency:
-
-### 1. Pricing Formula
-- **Subscription**: `$2 × [User Count] × [Term: 3, 6, or 13 months] + [$400 × Relay Count]`  
-  *(Annual orders receive the 13th month completely free!)*
-- **Perpetual (Lifetime)**: `$5 × [User Count] + [$1,000 × Relay Count]` (one-time payment forever).
-
-#### Calculation Examples:
-- **50 users for 6 months**: `50 × $2 × 6 = 600 USDT`
-- **100 users for 13 months + 1 Relay**: `100 × $2 × 12 mo + $400 = 2,800 USDT`
-- **200 users Perpetual (Lifetime) + 2 Relays**: `200 × $5 + 2 × $1,000 = 3,000 USDT`
-
-### 2. Payment Details (USDT TRC-20)
-Send the exact calculated amount to the official project wallet:
-
-```text
-Network:   TRON (TRC-20)
-Currency:  USDT
-Address:   THGqs6iB1T4MyL9NC3TKqJkphFGBj4i6uR
-```
-
-### 3. Submit License Request
-After completing the transfer, send an email to:  
-📧 **[admin@ligam.org](mailto:admin@ligam.org)**
-
-Please include:
-1. **Transaction Hash (TXID)** of the USDT payment.
-2. **License Plan**: Subscription (3, 6, or 13 months) or Perpetual (Lifetime).
-3. **Number of Users** and number of **Relay nodes**.
-4. **Server Activation Code (Hardware ID)**:
-   > Found in your server's web admin console:  
-   > **/admin → 🔑 License → Current Host Activation Code** (e.g. `LG-94A2-B7C1-...`).
-5. Your company name or contact person.
-
-### 4. Instant Offline Activation
-You will receive a cryptographically signed license file (`-----BEGIN LIGAMENT LICENSE----- ...`) in reply.
-- Go to **/admin → License**, paste the text, and click **«Save License»**.
-- The license takes effect immediately without container restart and without internet access.
 
 ---
 
 ## ⚡ Quick Start in 2 Minutes
 
-No build tools or source compilation required — everything runs in official Docker containers.
+Install with a single command. The installer detects the environment, checks hardware requirements, resolves port conflicts, configures Docker Hub registry mirrors if necessary, and deploys the stack.
 
-### One-command install (recommended)
+### 🚀 Automated 1-Line Installation (Recommended)
+
 ```bash
-mkdir -p ligament && cd ligament
-curl -fsSL https://raw.githubusercontent.com/aligorov/ligament/main/install.sh -o install.sh
-curl -fsSL https://raw.githubusercontent.com/aligorov/ligament/main/docker-compose.yml -o docker-compose.yml
-chmod +x install.sh && ./install.sh
+curl -fsSL https://raw.githubusercontent.com/aligorov/ligament/main/install.sh | bash
 ```
-The installer checks Docker, verifies ports **80/8080 (tcp) and 1812/1813 (udp) are free**
-(including ports held by other containers — invisible to host utilities), **generates and
-safely stores** the PostgreSQL password in `.env` (chmod 600; reused on upgrades — changing
-it would lose the database), optionally pins the image version (`--tag vX.Y.Z`) and custom
-ports (`--http-port 8080 --radius-auth 11812 …`), waits for `/healthz`, and extracts
-`admin_password.txt` + `admin_recovery_codes.txt` (chmod 600) for you.
 
-Useful flags: `--fresh` — clean start when a previous installation's database is detected
-(docker volumes outlive their directory), `--set-password '...'` — your own DB password.
+### 💻 Interactive TUI Terminal
 
-### Manual install
+Running `./install.sh` in an interactive terminal launches the ANSI-based text UI:
+
+```text
+╔═══════════════════════════════════════════════════════════════════════╗
+║  🛡️  LIGAMENT ENTERPRISE PLATFORM — INSTALLER & ORCHESTRATOR         ║
+║  Version: 2.1.0 · Working Dir: /opt/ligament                          ║
+╚═══════════════════════════════════════════════════════════════════════╝
+
+  Choose deployment profile or action:
+
+  [1] 🚀 All-in-One Enterprise (All modules on this host)
+      Core 2FA + Chat + Recorder + Ticket + Guard
+
+  [2] 🛡️ Core Security Only (Minimal Base Engine)
+      2FA Auth, Web Portal, RADIUS, PACS Drivers, PostgreSQL
+
+  [3] 💬 Unified Communications (Chat & Call Recording)
+      Core 2FA + Corporate Chat + Recorder + Ticket
+
+  [4] 🏢 Physical Security & Access (Facility Security)
+      Core 2FA + Guard Kiosk Monitor
+
+  [5] 🧊 Install ICE (Coturn STUN/TURN) (Local or remote VPS)
+  [6] 📡 Install Relay (For remote branch office)
+  ────────────────────────────────────────────────────────────────────────
+  [7] 🔄 Update Containers (Pull all or single module)
+  [8] 📊 Container Status & Logs
+  [9] ❌ Exit
+```
+
+### ⚙️ Non-Interactive CLI Automation (CI/CD)
+
 ```bash
-curl -fsSL https://raw.githubusercontent.com/aligorov/ligament/main/docker-compose.yml -o docker-compose.yml
-echo 'TWOFA_PG_PASSWORD=YourStrongSecretPassword123' > .env && chmod 600 .env
-docker compose up -d
-```
-> **Why `.env`:** docker compose reads it automatically — `logs`, `ps`, `down` and upgrades
-> all work without re-exporting the variable (an inline `VAR=... docker compose up` prefix
-> lives only in that one command). Avoid a single quote `'` in the password; the installer
-> generates and validates a safe one for you.
+# Full Enterprise suite deployment
+./install.sh --all
 
-### Access the Web Dashboard
-- Open in your browser: **http://YOUR-SERVER-IP** (port 80; direct — :8080)
-- Username: `admin`
-- Password: from `admin_password.txt` (placed next to the installation)
-- `admin_recovery_codes.txt` nearby — 5 one-time break-glass recovery codes (store them in a safe!)
-- Navigate to **/admin → Settings** to configure your Telegram bot, SMTP email gateway, and activate 2FA for your account.
+# Minimal 2FA core only
+./install.sh --core-only
+
+# Custom module selection
+./install.sh --modules core,chat,guard
+
+# Custom directory and pinned image version
+./install.sh --dir /srv/ligament --tag latest
+
+# Clean fresh install wiping previous volumes
+./install.sh --fresh
+```
+
+### 🔑 Initial Admin Access
+
+Upon completion, the installer displays the summary:
+* **Admin Dashboard URL:** `http://SERVER_IP:8080` (or port `:80`)
+* **Admin Username:** `admin`
+* **Master Password:** Saved in `./admin_password.txt` (`chmod 600`)
+* **Recovery Codes:** Saved in `./admin_recovery_codes.txt` (5 single-use codes)
+* **Secrets & Config:** Saved in `./.env` (`chmod 600`)
 
 ---
 
-## 📱 Client Applications
+## 🌐 Distributed Deployment (Core + VPS ICE + Branch Relay)
 
-Official client packages and installers are published in the [**ligament-apps/releases**](https://github.com/aligorov/ligament-apps/releases) repository:
+For production, roles should be physically decoupled:
 
-| Component | Platform | Format | Purpose |
-|---|---|---|---|
-| **Windows Credential Provider** | Windows 10, 11, Server 2016–2025 | `.msi`, `.zip` | LogonUI module: RDP/Local 2FA with Auto-Logon, UAC elevation MFA |
-| **Ligament Relay Agent** | Linux (Docker, Binary), Windows Server | Docker image, `.zip` | Peripheral branch node: offline auth cache & isolated subnet proxy |
-| **Ligament Authenticator** | Android | `.apk` | Mobile client with Push, number matching, and biometrics |
-| **Ligament Authenticator** | Windows | `.exe`, `.zip` | System tray desktop client with instant push alerts |
-| **Ligament Authenticator** | Linux (Astra Linux, RED OS, Alt Linux, Ubuntu, Debian, RHEL) | `.deb`, `.rpm`, `.tar.gz` | Graphical desktop client with push alerts, number matching, and system tray |
+### 1. Central Server (Datacenter / Headquarters)
+Deploy central core and internal services:
+```bash
+./install.sh --modules core,chat,recorder,ticket,guard
+```
 
-### 🐧 Linux Enterprise & Russian OS Deployment
+### 2. WebRTC ICE Media Gateway (Public Cloud VPS)
+Deploy the media gateway on a VPS with a public IPv4 address:
 
-Ligament Authenticator is packaged and verified for major enterprise Linux distributions and Russian operating systems:
+* **Option A: Remote SSH deployment from central server:**
+  ```bash
+  ./install.sh --deploy-remote-ice vps.yourdomain.com --ice-realm turn.yourdomain.com --ice-email admin@yourdomain.com
+  ```
+* **Option B: Direct installation on the VPS:**
+  ```bash
+  curl -fsSL https://raw.githubusercontent.com/aligorov/ligament/main/install.sh | bash -s -- --role ice --ice-realm turn.yourdomain.com
+  ```
 
-| Distribution | Package Type | Architecture | Installation Command |
-|---|---|---|---|
-| **Astra Linux** (Special Edition 1.7 / CE) | `.deb` | `amd64` | `sudo dpkg -i ligament-authenticator_*.deb || sudo apt-get install -f` |
-| **RED OS / РЕД ОС** (7.3, 8) | `.rpm` | `x86_64` | `sudo dnf install ./ligament-authenticator-*.rpm` *(or `sudo rpm -ivh`)* |
-| **Alt Linux / Альт Рабочая станция** (p9, p10) | `.rpm` | `x86_64` | `sudo epm install ./ligament-authenticator-*.rpm` *(or `sudo apt-get install ./...`)* |
-| **Ubuntu / Debian / Linux Mint** | `.deb` | `amd64` | `sudo apt install ./ligament-authenticator_*.deb` |
-| **RHEL / Rocky / AlmaLinux / Fedora** | `.rpm` | `x86_64` | `sudo dnf install ./ligament-authenticator-*.rpm` |
-| **Universal Portable (any distro)** | `.tar.gz` | `x86_64` | `tar -xzf Ligament-2FA-Linux-x86_64.tar.gz && sudo ./ligament-authenticator/install.sh` |
+### 3. Edge Relay Node (Remote Branch Office)
+Deploy the relay in the branch office LAN:
+
+* **Option A: Remote SSH deployment:**
+  ```bash
+  ./install.sh --deploy-remote-relay branch-router.local
+  ```
+* **Option B: Direct installation at the branch:**
+  ```bash
+  curl -fsSL https://raw.githubusercontent.com/aligorov/ligament/main/install.sh | bash -s -- --role relay
+  ```
+
+---
+
+## 🔄 Updates & Zero-Downtime Maintenance
+
+Update containers seamlessly without stopping the whole stack:
+
+### 1. Update All Running Modules
+```bash
+./install.sh --update
+```
+
+### 2. Update a Single Service (Zero-Downtime)
+Recreate only the targeted container without disconnecting databases or peer services:
+```bash
+./install.sh --update-module chat       # Updates aligorov/ligament_chat
+./install.sh --update-module twofa      # Updates Core 2FA
+./install.sh --update-module recorder   # Updates Media Server
+./install.sh --update-module guard      # Updates Guard Monitor
+```
 
 > [!TIP]
-> All Linux packages automatically create system application launcher entries (`ligament-authenticator.desktop`), install high-resolution icons into `/usr/share/icons/hicolor`, register the `/usr/bin/ligament-authenticator` executable symlink, and support custom protocol handlers (`x-scheme-handler/ligament`). For unprivileged environments, `./install.sh` inside the `.tar.gz` archive can be executed without `sudo` into `~/.local`.
+> Under the hood, the script executes `docker compose up -d --no-deps <service>`, keeping database connections and peer containers running uninterrupted.
 
-### 🌐 Ligament Relay Deployment (Branch Edge Node)
+---
 
-For remote branch offices and isolated network enclaves requiring offline 2FA autonomy, deploy **Ligament Relay** ([repository aligorov/ligament-relay](https://github.com/aligorov/ligament-relay)):
+## 📊 System Requirements & Port Matrix
 
-1. **Download the pre-configured compose manifest**:
-   ```bash
-   curl -sSL https://raw.githubusercontent.com/aligorov/ligament/main/docker-compose.relay.yml -o docker-compose.yml
-   ```
-2. **Create `config.yaml`** (connection parameters are generated in the core admin console at `/admin/relays`):
-   ```yaml
-   core:
-     url: "https://2fa.yourdomain.com"
-     password: "GeneratedBranchPassword"
-   ```
-3. **Start the node**:
-   ```bash
-   docker compose up -d
-   ```
+### 🖥️ Minimum vs Recommended Requirements
+
+| Deployment Profile | CPU Cores | RAM | Storage | Recommended OS |
+|---|---|---|---|---|
+| **Core Only (2FA)** | 2 Cores | 2 GB | 10 GB SSD / NVMe | Ubuntu 22.04/24.04, Debian 12, Astra 1.7, RED OS 8 |
+| **All-in-One Enterprise** | 4 Cores | 8 GB | 50+ GB NVMe (for video) | Ubuntu 22.04/24.04, Debian 12, RHEL 9 |
+| **ICE Gateway (VPS)** | 1–2 Cores | 1 GB | 5 GB SSD | Any Linux VPS with public IPv4 |
+| **Relay Node (Branch)** | 1–2 Cores | 1 GB | 5 GB SSD | Mini-PC, MicroServer or VM |
+
+### 🔌 Network Ports & Protocols
+
+| Module | Port | Protocol | Scope | Purpose |
+|---|---|---|---|---|
+| **Core WebUI / API** | `8080` / `80` | TCP | Inbound | Admin Panel, User Portal, OIDC/SAML endpoints |
+| **Core RADIUS** | `1812` | UDP | Inbound | VPN & Wi-Fi 802.1X authentication |
+| **Core Accounting** | `1813` | UDP | Inbound | RADIUS session accounting |
+| **Chat** | `8097` | TCP | Inbound | Client chat connections (HTTP + WebSockets) |
+| **Recorder** | `8095` | TCP | Internal | Media stream Ingest API |
+| **Ticket** | `8096` | TCP | Inbound | Helpdesk & Incident management web UI |
+| **Guard** | `8090` | TCP | Inbound | SSE turnstile event stream for guard monitors |
+| **Relay** | `8082` | TCP | Inbound (LAN) | Branch local API and LAN Push delivery |
+| **Relay mDNS** | `5353` | UDP | Local LAN | Subnet agent auto-discovery |
+| **ICE STUN/TURN** | `3478` | TCP / UDP | Inbound (VPS) | Standard STUN/TURN signaling |
+| **ICE TURNS (TLS)** | `443` | TCP / UDP | Inbound (VPS) | TLS TURN relay traffic (strict firewalls) |
+| **ICE Dynamic Relay**| `49152–49250`| UDP | Inbound (VPS) | WebRTC dynamic media packet range |
+| **PostgreSQL** | `5432` | TCP / Socket | **Docker Internal** | Database (never exposed to host) |
+
+---
+
+## 📱 Client Applications & Enterprise OS Support
+
+Official client distributions are hosted in [**ligament-apps/releases**](https://github.com/aligorov/ligament-apps/releases):
+
+| Component | Target Platform | Package Format | Purpose |
+|---|---|---|---|
+| **Windows Credential Provider** | Windows 10, 11, Server 2016–2025 | `.msi`, `.zip` | Native LogonUI module: 2FA on local login and RDP, Auto-Logon, Number Matching, UAC elevation |
+| **Ligament Authenticator** | Android | `.apk` | Mobile app with Push, TOTP, Number Matching, and biometrics |
+| **Ligament Authenticator** | iOS | App Store / TestFlight | Mobile app for iPhone/iPad |
+| **Ligament Desktop** | Linux, macOS, Windows | `.deb`, `.rpm`, `.dmg`, `.exe` | Desktop client for employee workstations |
+
+### 🐧 Russian Enterprise Linux Support
+
+Client packages are pre-built and validated across enterprise Linux distributions:
+
+| Operating System | Package Type | Architecture | Quick Install Command |
+|---|---|---|---|
+| **Astra Linux** (Special Edition 1.7 / CE) | `.deb` | `amd64` | `sudo dpkg -i ligament-authenticator_*.deb \|\| sudo apt-get install -f` |
+| **RED OS** (versions 7.3, 8) | `.rpm` | `x86_64` | `sudo dnf install ./ligament-authenticator-*.rpm` |
+| **Alt Linux Workstation / SPT** (p9, p10) | `.rpm` | `x86_64` | `sudo epm install ./ligament-authenticator-*.rpm` |
+| **Ubuntu / Debian / Linux Mint** | `.deb` | `amd64` | `sudo apt install ./ligament-authenticator_*.deb` |
+| **Universal Portable** | `.tar.gz` | `x86_64` | `tar -xzf Ligament-Linux-x86_64.tar.gz && ./install.sh` |
+
+---
+
+## 📊 Editions & Licensing
+
+| Edition | Intended For | User Limit | Duration |
+|---|---|---|---|
+| 🟢 **Free (Community)** | Homelabs, micro-teams, protecting admin accounts | Up to 5 users | Lifetime |
+| 🟡 **Demo (Trial)** | Full pilot testing of all Enterprise capabilities | Unlimited | 30 Days (Node-locked to server) |
+| 🔵 **Subscription** | Production deployment with vendor support | By seat count | Active subscription period |
+| 🟣 **Perpetual (CapEx)** | Perpetual corporate license (Self-hosted) | By seat count | Lifetime |
+
+### 🔍 Feature Breakdown
+
+* **Included in Free:** All core 2FA factors (TOTP, Telegram, Push, SMS, Email), Windows Credential Provider with Auto-Logon and Number Matching, RADIUS server (VPN/Wi-Fi), user self-service portal, standard audit log.
+* **Unlocked in Demo & Commercial Licenses:**
+  - 🔑 **OIDC / SAML Identity Provider (SSO)** for corporate web apps.
+  - 🏢 **Active Directory / OpenLDAP synchronization**.
+  - 💬 **Ligament Chat corporate messenger** with P2P WebRTC.
+  - 🎥 **Ligament Recorder** session capture and AI worker.
+  - 🎫 **Zero-Blob Ligament Ticket** helpdesk.
+  - 🛡️ **Ligament Guard** Kiosk monitor and PACS controller integrations.
+  - 📡 **Unlimited Ligament Relay edge nodes**.
+  - 🌐 **Geo-IP filtering, Web-SSH/RDP bastion, sponsored guest access**.
+  - 🏷️ **White-Labeling**.
+
+---
+
+## 🔑 License Activation
+
+Activation is performed cryptographically via the web console:
+
+1. In the Core Web Admin panel, navigate to **Settings → License** and copy your **Server Activation Code** (hardware fingerprint).
+2. Request a trial or commercial license key from support by providing your activation code and company name.
+3. You will receive a cryptographically signed license file (`.lic`), activated with one click in the web UI without service restarts.
 
 ---
 
 ## 📄 Documentation & Presentation
 
-- 📊 **Product Presentation (PDF)**: [`presentation/v4/Ligament-Обзор-2026-10-10.pdf`](presentation/v4/Ligament-Обзор-2026-10-10.pdf) — 22-slide overview covering capabilities, interaction diagrams, pricing and competitor comparisons (October 10, 2026).
-- 🌐 **Interactive Web Presentation**: [`presentation/v4/Ligament-Обзор-2026-10-10.html`](presentation/v4/Ligament-Обзор-2026-10-10.html).
-- 🧩 **Client Applications Repository**: [aligorov/ligament-apps](https://github.com/aligorov/ligament-apps).
+* 📊 **Official Presentation (PDF v4)**: [`presentation/v4/Ligament-Обзор-2026-10-10.pdf`](presentation/v4/Ligament-Обзор-2026-10-10.pdf) — 22 slides covering architecture, competitive comparisons against Cisco Duo, Protectimus, SafeNet, and implementation patterns.
+* 🌐 **Interactive HTML Deck**: [`presentation/v4/Ligament-Обзор-2026-10-10.html`](presentation/v4/Ligament-Обзор-2026-10-10.html).
+* 🛡️ **Security Audit Report**: [`security_best_practices_report.md`](security_best_practices_report.md).
+* 🧩 **Client Applications Repository**: [aligorov/ligament-apps](https://github.com/aligorov/ligament-apps).
 
 ---
 
-## 📬 Contacts
+## 📬 Contacts & Community
 
-- 📧 **Sales & Licensing**: [admin@ligam.org](mailto:admin@ligam.org)
-- 🌐 **Official Portal**: [ligam.org](https://ligam.org)
-- 💬 **Technical Support**: [admin@ligam.org](mailto:admin@ligam.org)
-- 💰 **USDT Payments (TRC-20)**: `THGqs6iB1T4MyL9NC3TKqJkphFGBj4i6uR`
+* 🌐 **GitHub Repository:** [aligorov/ligament](https://github.com/aligorov/ligament)
+* 🧩 **Client Applications:** [aligorov/ligament-apps](https://github.com/aligorov/ligament-apps)
+* 💬 **Issue Tracker & Discussions:** [GitHub Issues](https://github.com/aligorov/ligament/issues)
 
 <div align="center">
-  <sub>© 2026 Ligament Security. All rights reserved. Self-hosted Enterprise MFA.</sub>
+  <sub>© 2026 Ligament Security. All rights reserved. Self-Hosted Sovereign Enterprise MFA & Cyber-Security Platform.</sub>
 </div>

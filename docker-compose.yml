@@ -1,15 +1,33 @@
-# КЛИЕНТСКИЙ compose: готовый образ из Docker Hub, исходники не нужны.
-#   export TWOFA_PG_PASSWORD='...'   # пароль БД обязателен (без дефолта)
-#   docker compose -f docker-compose.client.yml up -d
-#   docker compose -f docker-compose.client.yml logs twofa | grep "ADMIN PASSWORD"
-# Пароль первого администратора — в admin_password.txt внутри контейнера:
-#   docker cp $(docker compose -f docker-compose.client.yml ps -q twofa):/home/nonroot/admin_password.txt .
+# ==============================================================================
+# Ligament Enterprise Platform — Единый оркестратор модулей
+# Документация: https://github.com/aligorov/ligament
+# ==============================================================================
+# Управление профилями (COMPOSE_PROFILES в .env):
+#   core       - Центральное ядро 2FA (PostgreSQL + Core Web/API/RADIUS/СКУД)
+#   chat       - Корпоративный мессенджер Ligament Chat (порт :8097)
+#   recorder   - Запись медиа/сессий Ligament Recorder + AI Worker (порт :8095)
+#   ticket     - Helpdesk/тикет-система Ligament Ticket (порт :8096)
+#   guard      - Kiosk-монитор охраны Ligament Guard (порт :8090)
+#   all        - Запуск всех центральных модулей стека
+#
+# Примеры запуска:
+#   docker compose up -d                      # Запуск сервисов активного профиля
+#   docker compose --profile all up -d        # Принудительный запуск всего стека
+#   docker compose logs -f twofa              # Логи конкретного сервиса
+# ==============================================================================
+
 services:
+  # ----------------------------------------------------------------------------
+  # 1. CORE 2FA: База данных PostgreSQL (TCP)
+  # ----------------------------------------------------------------------------
   db:
     image: postgres:16-alpine
+    container_name: ligament-core-db
+    profiles: ["core", "all"]
+    restart: unless-stopped
     environment:
       POSTGRES_USER: twofa
-      POSTGRES_PASSWORD: "${TWOFA_PG_PASSWORD:?пароль БД не задан: создайте .env (echo TWOFA_PG_PASSWORD=... > .env) — см. install.sh/README; .env подхватывается ВСЕМИ командами compose}"
+      POSTGRES_PASSWORD: "${TWOFA_PG_PASSWORD:?Пароль БД не задан: создайте .env (см. install.sh)}"
       POSTGRES_DB: twofa
     volumes:
       - twofa_pgdata:/var/lib/postgresql/data
@@ -18,40 +36,199 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
-    restart: unless-stopped
+    networks:
+      - ligament-net
 
+  # ----------------------------------------------------------------------------
+  # 2. CORE 2FA: Центральный сервер (WebUI, API, RADIUS, СКУД, SSO)
+  # ----------------------------------------------------------------------------
   twofa:
     image: aligorov/ligament_2fa:${TWOFA_IMAGE_TAG:-latest}
+    container_name: ligament-core
     hostname: ligament-auth
+    profiles: ["core", "all"]
+    restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
     environment:
-      # Keyword/value-DSN с одинарными кавычками вокруг пароля: URL-формат
-      # ломался на спецсимволах пароля (?, &, #, <>...) — pgx поддерживает
-      # libpq-синтаксис, где кавычки экранируют всё до следующей '.
-      TWOFA_DB_DSN: "host=db port=5432 user=twofa dbname=twofa password='${TWOFA_PG_PASSWORD:?пароль БД не задан: создайте .env (echo TWOFA_PG_PASSWORD=... > .env) — см. install.sh/README; .env подхватывается ВСЕМИ командами compose}'"
-      # Доверенные подсети обратного прокси (NPM/nginx/Caddy/Traefik).
-      # По умолчанию доверены локальные/Docker сети (127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16).
-      # TRUSTED_PROXIES: "127.0.0.0/8,::1/128,172.16.0.0/12,10.0.0.0/8,192.168.0.0/16"
-      # Автоматический заказ и продление SSL/TLS (Let's Encrypt)
-      # Настройки можно также задать через Web-интерфейс (Настройки -> SSL/TLS и ACME):
-      # ACME_DOMAIN: auth.example.com
-      # ACME_EMAIL: admin@example.com
-      # ACME_STAGING: "false"
-      # Либо использовать внешние файлы сертификата:
-      # EAP_CERT_FILE: /etc/ssl/certs/fullchain.pem
-      # EAP_KEY_FILE: /etc/ssl/certs/privkey.pem
+      TWOFA_DB_DSN: "host=db port=5432 user=twofa dbname=twofa password='${TWOFA_PG_PASSWORD:?Пароль БД не задан}'"
+      TRUSTED_PROXIES: "${TRUSTED_PROXIES:-127.0.0.0/8,::1/128,172.16.0.0/12,10.0.0.0/8,192.168.0.0/16}"
+      # ICE / STUN / TURN интеграция (если настроен внешний ICE на VPS)
+      TURN_SERVER: "${LIG_TURN_SERVER:-}"
+      TURN_USER: "${LIG_TURN_USER:-ligament}"
+      TURN_SECRET: "${LIG_TURN_PASSWORD:-}"
     ports:
-      # Управляются install.sh (ключи в .env), значения по умолчанию — как здесь
       - "${LIG_HTTP_PORT:-80}:8080"
       - "${LIG_APP_PORT:-8080}:8080"
       - "${LIG_RADIUS_AUTH:-1812}:1812/udp"
       - "${LIG_RADIUS_ACCT:-1813}:1813/udp"
     volumes:
-      # Для аппаратной привязки лицензии к физическому хосту в Linux (read-only):
       - /etc/machine-id:/etc/host-machine-id:ro
+    networks:
+      - ligament-net
+
+  # ----------------------------------------------------------------------------
+  # 3. MEDIA DB: Изолированный PostgreSQL для медиа-модулей (Unix domain socket)
+  # Zero-ENV архитектура для Recorder, Chat и Ticket (без паролей в DSN)
+  # ----------------------------------------------------------------------------
+  media-db:
+    image: postgres:16-alpine
+    container_name: ligament-media-db
+    profiles: ["chat", "recorder", "ticket", "all"]
     restart: unless-stopped
+    environment:
+      POSTGRES_USER: recorder
+      POSTGRES_DB: ligament_recorder
+      POSTGRES_HOST_AUTH_METHOD: trust
+    command:
+      - "postgres"
+      - "-c"
+      - "listen_addresses="
+      - "-c"
+      - "unix_socket_directories=/var/run/postgresql"
+      - "-c"
+      - "unix_socket_permissions=0777"
+    volumes:
+      - media_pgdata:/var/lib/postgresql/data
+      - media_pgsocket:/var/run/postgresql
+      - ./config/init-media-db.sh:/docker-entrypoint-initdb.d/init-media-db.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h /var/run/postgresql -U recorder -d ligament_recorder"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - ligament-net
+
+  # ----------------------------------------------------------------------------
+  # 4. CHAT: Корпоративный мессенджер + P2P WebRTC сигнализация звонков
+  # ----------------------------------------------------------------------------
+  chat:
+    image: aligorov/ligament_chat:${CHAT_IMAGE_TAG:-latest}
+    container_name: ligament-chat
+    profiles: ["chat", "all"]
+    restart: unless-stopped
+    depends_on:
+      media-db:
+        condition: service_healthy
+      twofa:
+        condition: service_started
+    volumes:
+      - media_pgsocket:/var/run/postgresql
+      - chat_data:/var/lib/ligament-chat
+    ports:
+      - "${LIG_CHAT_PORT:-8097}:8097"
+    command:
+      - "-listen"
+      - "0.0.0.0:8097"
+      - "-data-dir"
+      - "/var/lib/ligament-chat"
+      - "-db-socket"
+      - "/var/run/postgresql"
+      - "-db-user"
+      - "chat"
+      - "-db-name"
+      - "ligament_chat"
+      - "-core-url"
+      - "http://twofa:8080"
+      - "-recorder-url"
+      - "http://recorder:8095"
+    networks:
+      - ligament-net
+
+  # ----------------------------------------------------------------------------
+  # 5. RECORDER: Запись сессий/звонков + AI Worker (Zero-ENV)
+  # ----------------------------------------------------------------------------
+  recorder:
+    image: aligorov/ligament_recoder:${RECORDER_IMAGE_TAG:-latest}
+    container_name: ligament-recoder
+    profiles: ["recorder", "all"]
+    restart: unless-stopped
+    depends_on:
+      media-db:
+        condition: service_healthy
+    volumes:
+      - media_pgsocket:/var/run/postgresql
+      - recorder_data:/var/lib/ligament-recorder
+    ports:
+      - "${LIG_RECORDER_PORT:-8095}:8095"
+    command:
+      - "-listen"
+      - "0.0.0.0:8095"
+      - "-data-dir"
+      - "/var/lib/ligament-recorder"
+      - "-db-socket"
+      - "/var/run/postgresql"
+      - "-db-user"
+      - "recorder"
+      - "-db-name"
+      - "ligament_recorder"
+    networks:
+      - ligament-net
+
+  # ----------------------------------------------------------------------------
+  # 6. TICKET: Helpdesk / Заявки / Инциденты (Zero-Blob: медиа в Recorder)
+  # ----------------------------------------------------------------------------
+  ticket:
+    image: aligorov/ligament_ticket:${TICKET_IMAGE_TAG:-latest}
+    container_name: ligament-ticket
+    profiles: ["ticket", "all"]
+    restart: unless-stopped
+    depends_on:
+      media-db:
+        condition: service_healthy
+      twofa:
+        condition: service_started
+    volumes:
+      - media_pgsocket:/var/run/postgresql
+    ports:
+      - "${LIG_TICKET_PORT:-8096}:8096"
+    command:
+      - "-listen"
+      - "0.0.0.0:8096"
+      - "-db-socket"
+      - "/var/run/postgresql"
+      - "-db-user"
+      - "ticket"
+      - "-db-name"
+      - "ligament_ticket"
+      - "-core-url"
+      - "http://twofa:8080"
+      - "-recorder-url"
+      - "http://recorder:8095"
+    networks:
+      - ligament-net
+
+  # ----------------------------------------------------------------------------
+  # 7. GUARD: Kiosk-монитор КПП и турникетов (SSE поток проходов охраны)
+  # ----------------------------------------------------------------------------
+  guard:
+    image: aligorov/ligament_guard:${GUARD_IMAGE_TAG:-latest}
+    container_name: ligament-guard
+    profiles: ["guard", "all"]
+    restart: unless-stopped
+    depends_on:
+      twofa:
+        condition: service_started
+    ports:
+      - "${LIG_GUARD_PORT:-8090}:8090"
+    command:
+      - "-port"
+      - "8090"
+      - "-core-url"
+      - "http://twofa:8080"
+    networks:
+      - ligament-net
 
 volumes:
   twofa_pgdata:
+  media_pgdata:
+  media_pgsocket:
+  chat_data:
+  recorder_data:
+
+networks:
+  ligament-net:
+    name: ligament-net
+    driver: bridge

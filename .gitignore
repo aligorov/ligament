@@ -6,6 +6,7 @@ admin_password.txt
 admin_recovery_codes.txt
 # Конфиг узла Relay: содержит пароль подключения к центральному ядру
 config.yaml
+config/relay.yaml
 site
 .DS_Store
-
+.qoder/

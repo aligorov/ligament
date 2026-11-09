@@ -1,0 +1,109 @@
+# ==============================================================================
+# Ligament ICE — WebRTC STUN/TURN/TURNS Медиа-шлюз (для публичного VPS)
+# ==============================================================================
+# Рекомендуется разворачивать на внешнем VPS с белым IP-адресом.
+# Порты:
+#   80/tcp         - ACME HTTP-01 челлендж (Let's Encrypt Certbot)
+#   443/tcp,udp    - TURNS (TLS) защищённый реле трафик
+#   3478/tcp,udp   - STUN / TURN стандартный порт
+#   5349/tcp,udp   - TURNS TLS альтернативный порт
+#   49152-49250/udp- Диапазон динамических портов WebRTC ретрансляции
+# ==============================================================================
+
+services:
+  certbot:
+    image: certbot/certbot:latest
+    container_name: ligament-ice-certbot
+    restart: unless-stopped
+    volumes:
+      - ice_certs:/etc/letsencrypt
+    ports:
+      - "80:80/tcp"
+    environment:
+      - REALM=${ICE_REALM:-turn.example.com}
+      - ACME_EMAIL=${ACME_EMAIL:-admin@example.com}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        DOMAIN="$${REALM:-turn.example.com}"
+        EMAIL="$${ACME_EMAIL:-admin@example.com}"
+        echo "[Certbot] Проверка TLS сертификатов для $$DOMAIN..."
+        if [ ! -f "/etc/letsencrypt/live/$$DOMAIN/fullchain.pem" ]; then
+          echo "[Certbot] Сертификат не найден. Запуск первичного выпуска Let's Encrypt..."
+          certbot certonly --standalone --agree-tos --non-interactive --no-eff-email -m "$$EMAIL" -d "$$DOMAIN" --preferred-challenges http || true
+          if [ -f "/etc/letsencrypt/live/$$DOMAIN/fullchain.pem" ]; then
+            chmod -R 755 /etc/letsencrypt/live /etc/letsencrypt/archive
+            chmod 644 "/etc/letsencrypt/live/$$DOMAIN/privkey.pem"
+            echo "[Certbot] Сертификат успешно получен!"
+          else
+            echo "[Certbot] Предупреждение: сертификат не получен (проверьте DNS A-запись и порт 80). Coturn запустится в plain режиме."
+          fi
+        else
+          echo "[Certbot] Сертификат уже присутствует."
+        fi
+        echo "[Certbot] Запуск демона автопродления (каждые 12 часов)..."
+        trap exit TERM
+        while :; do
+          certbot renew --quiet --deploy-hook "chmod -R 755 /etc/letsencrypt/live /etc/letsencrypt/archive && chmod 644 /etc/letsencrypt/live/$$DOMAIN/privkey.pem" || true
+          sleep 12h & wait $${!}
+        done
+
+  ice:
+    image: coturn/coturn:4.6.2-alpine
+    container_name: ligament-ice
+    restart: unless-stopped
+    depends_on:
+      - certbot
+    environment:
+      - REALM=${ICE_REALM:-turn.example.com}
+      - EXTERNAL_IP=${EXTERNAL_IP:-}
+      - TURN_USER=${TURN_USER:-ligament}
+      - TURN_PASSWORD=${TURN_PASSWORD:?TURN_PASSWORD обязателен}
+    volumes:
+      - ./config/turnserver.conf:/etc/coturn/turnserver.conf:ro
+      - ice_certs:/etc/coturn/certs:ro
+    ports:
+      - "443:443/tcp"
+      - "443:443/udp"
+      - "3478:3478/tcp"
+      - "3478:3478/udp"
+      - "5349:5349/tcp"
+      - "5349:5349/udp"
+      - "49152-49250:49152-49250/udp"
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        DOMAIN="$${REALM:-turn.example.com}"
+        CERT_FILE="/etc/coturn/certs/live/$$DOMAIN/fullchain.pem"
+        KEY_FILE="/etc/coturn/certs/live/$$DOMAIN/privkey.pem"
+
+        if [ -f "$$CERT_FILE" ] && [ -f "$$KEY_FILE" ]; then
+          echo "[Coturn] Запуск с TURNS TLS на порту 443 и STUN/TURN на 3478..."
+          exec turnserver -c /etc/coturn/turnserver.conf \
+            --tls-listening-port=443 \
+            --listening-port=3478 \
+            --realm="$$DOMAIN" \
+            $${EXTERNAL_IP:+--external-ip="$$EXTERNAL_IP"} \
+            --user="$${TURN_USER:-ligament}:$${TURN_PASSWORD}" \
+            --cert="$$CERT_FILE" \
+            --pkey="$$KEY_FILE"
+        else
+          echo "[Coturn] Сертификаты не найдены. Запуск в режиме plain STUN/TURN (порты 443 + 3478)..."
+          exec turnserver -c /etc/coturn/turnserver.conf \
+            --listening-port=443 \
+            --alt-listening-port=3478 \
+            --realm="$$DOMAIN" \
+            $${EXTERNAL_IP:+--external-ip="$$EXTERNAL_IP"} \
+            --user="$${TURN_USER:-ligament}:$${TURN_PASSWORD}"
+        fi
+
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 443 || nc -z 127.0.0.1 3478 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  ice_certs:

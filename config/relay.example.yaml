@@ -1,0 +1,9 @@
+# Шаблон конфигурации узла Ligament Relay
+core:
+  url: "https://2fa.yourdomain.com"
+  password: "YourRelayNodeSecretPassword"
+local:
+  http_port: 8082
+  radius_port: 1812
+cache:
+  offline_ttl_hours: 72
