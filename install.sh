@@ -288,13 +288,67 @@ docker_port_busy() {
   docker ps --format '{{.Ports}}' 2>/dev/null | grep -qE "[:.]${p}->"
 }
 
+inspect_port_owner() {
+  local p="$1"
+  local owner=""
+  local docker_cont=""
+  docker_cont="$(docker ps --filter "publish=$p" --format '{{.Names}}' 2>/dev/null || true)"
+  if [[ -n "$docker_cont" ]]; then
+    echo "Docker-контейнер: $docker_cont"
+    return 0
+  fi
+  if command -v lsof >/dev/null 2>&1; then
+    owner="$(lsof -iTCP:"$p" -sTCP:LISTEN -P -n 2>/dev/null | awk 'NR==2 {print $1 " (PID " $2 ")"}')"
+  fi
+  if [[ -z "$owner" ]] && command -v ss >/dev/null 2>&1; then
+    owner="$(ss -ltnp "( sport = :$p )" 2>/dev/null | awk 'NR>1 {print $NF}' | tr -d '"')"
+  fi
+  echo "${owner:-Занят процессом хоста}"
+}
+
 resolve_free_port() {
   local p="$1" name="$2"
   while port_busy_tcp "$p" || docker_port_busy "$p"; do
-    warn "Порт tcp/$p ($name) занят, подбираю свободный..."
+    local owner; owner="$(inspect_port_owner "$p")"
+    warn "Порт tcp/$p ($name) занят ($owner), подбираю свободный..."
     p=$((p + 1))
   done
   echo "$p"
+}
+
+# ------------------------------------------------------------------------------
+# ИНСПЕКЦИЯ ПУТЕЙ И ПРОВЕРКА УЖЕ УСТАНОВЛЕННЫХ КОМПОНЕНТОВ
+# ------------------------------------------------------------------------------
+detect_existing_installation() {
+  local cur_path; cur_path="$(pwd -P)"
+  say "Инспекция путей и проверка существующей установки..."
+  info "Рабочий каталог: ${C_BOLD}$cur_path${C_RESET}"
+
+  if [[ -f "$env_file" ]]; then
+    local profs; profs="$(grep '^COMPOSE_PROFILES=' "$env_file" 2>/dev/null | cut -d= -f2 || echo "core")"
+    local p_app; p_app="$(grep '^LIG_APP_PORT=' "$env_file" 2>/dev/null | cut -d= -f2 || echo "8080")"
+    info "Конфигурация Core: .env присутствует (активные профили: ${C_GREEN}$profs${C_RESET}, порт: ${C_CYAN}:$p_app${C_RESET})"
+  fi
+
+  if [[ -f ".env.ice" ]]; then
+    local r; r="$(grep '^ICE_REALM=' .env.ice 2>/dev/null | cut -d= -f2 || echo "")"
+    info "Конфигурация ICE: .env.ice найдена (домен: ${C_GREEN}${r:-не задан}${C_RESET})"
+  fi
+
+  if [[ -f "config/relay.yaml" ]]; then
+    info "Конфигурация Relay: config/relay.yaml присутствует"
+  fi
+
+  local existing_conts
+  existing_conts="$(docker ps -a --filter "name=ligament" --format '{{.Names}}|{{.Status}}|{{.Ports}}' 2>/dev/null || true)"
+  if [[ -n "$existing_conts" ]]; then
+    say "Обнаруженные контейнеры Ligament:"
+    while IFS='|' read -r c_name c_status c_ports; do
+      printf "   • ${C_BOLD}%-24s${C_RESET} [${C_CYAN}%s${C_RESET}] %s\n" "$c_name" "$c_status" "$c_ports"
+    done <<< "$existing_conts"
+  else
+    info "Активных контейнеров Ligament пока не обнаружено."
+  fi
 }
 
 # ------------------------------------------------------------------------------
@@ -431,18 +485,54 @@ deploy_central() {
 deploy_ice() {
   ensure_required_files
   say "Развёртывание Ligament ICE (Coturn STUN/TURN + Let's Encrypt)..."
+  info "Каталог установки: $(pwd -P)"
+
+  # Авто-очистка остановленных или конфликтующих контейнеров прошлой попытки
+  local old_ice
+  old_ice="$(docker ps -a --filter "name=ligament-ice" --format '{{.Names}}' 2>/dev/null || true)"
+  if [[ -n "$old_ice" ]]; then
+    say "Обнаружены предыдущие контейнеры ICE ($old_ice). Остановка перед запуском..."
+    docker rm -f ligament-ice ligament-ice-certbot 2>/dev/null || true
+  fi
+
+  local def_realm="de-turn.ligam.org" def_email=""
+  if [[ -f .env.ice ]]; then
+    def_realm="$(grep '^ICE_REALM=' .env.ice 2>/dev/null | cut -d= -f2 || true)"
+    def_email="$(grep '^ACME_EMAIL=' .env.ice 2>/dev/null | cut -d= -f2 || true)"
+  fi
+  [[ -z "$def_realm" ]] && def_realm="turn.company.com"
 
   if [[ -z "$ice_realm" ]]; then
-    prompt_read "${C_BOLD}Введите публичный домен для TURN (например, turn.company.com): ${C_RESET}" ice_realm
+    prompt_read "${C_BOLD}Введите публичный домен для TURN [${def_realm}]: ${C_RESET}" ice_realm "$def_realm"
   fi
   [[ -z "$ice_realm" ]] && die "Домен TURN обязателен"
 
   if [[ -z "$ice_email" ]]; then
-    prompt_read "${C_BOLD}Введите email для Let's Encrypt (для уведомлений SSL) [admin@$ice_realm]: ${C_RESET}" ice_email "admin@$ice_realm"
+    [[ -z "$def_email" ]] && def_email="admin@$ice_realm"
+    prompt_read "${C_BOLD}Введите email для Let's Encrypt [${def_email}]: ${C_RESET}" ice_email "$def_email"
   fi
 
   local ice_pass
-  ice_pass="$(gen_pass 32)"
+  if [[ -f .env.ice ]] && grep -q '^TURN_PASSWORD=' .env.ice 2>/dev/null; then
+    ice_pass="$(grep '^TURN_PASSWORD=' .env.ice | cut -d= -f2)"
+  else
+    ice_pass="$(gen_pass 32)"
+  fi
+
+  say "Проверка доступности портов для ICE..."
+  local port_443_tcp="443:443/tcp"
+  local port_443_udp="443:443/udp"
+  local turn_port="443"
+
+  if port_busy_tcp 443 || docker_port_busy 443; then
+    local owner; owner="$(inspect_port_owner 443)"
+    warn "Порт 443/tcp занят ($owner)."
+    info "TURNS TLS переключён на стандартный защищённый порт RFC 5349."
+    local free_fb; free_fb="$(resolve_free_port 8443 'ICE Fallback')"
+    port_443_tcp="${free_fb}:443/tcp"
+    port_443_udp="${free_fb}:443/udp"
+    turn_port="5349"
+  fi
 
   cat <<EOF > .env.ice
 ICE_REALM=$ice_realm
@@ -450,6 +540,8 @@ ACME_EMAIL=$ice_email
 TURN_USER=ligament
 TURN_PASSWORD=$ice_pass
 EXTERNAL_IP=$(curl -fsS -m 3 https://api.ipify.org 2>/dev/null || echo "")
+ICE_PORT_443_TCP=$port_443_tcp
+ICE_PORT_443_UDP=$port_443_udp
 EOF
   chmod 600 .env.ice
 
@@ -459,8 +551,9 @@ EOF
 
   echo
   say "ICE сервер успешно запущен!"
+  info "Каталог конфигурации: $(pwd -P)/.env.ice"
   info "Параметры для интеграции в центральный .env ядра:"
-  printf "  ${C_GREEN}LIG_TURN_SERVER=\"turn:%s:443\"${C_RESET}\n" "$ice_realm"
+  printf "  ${C_GREEN}LIG_TURN_SERVER=\"turn:%s:%s\"${C_RESET}\n" "$ice_realm" "$turn_port"
   printf "  ${C_GREEN}LIG_TURN_USER=\"ligament\"${C_RESET}\n"
   printf "  ${C_GREEN}LIG_TURN_PASSWORD=\"%s\"${C_RESET}\n" "$ice_pass"
 }
@@ -565,6 +658,9 @@ run_interactive_tui() {
   printf "${C_CYAN}║${C_RESET}  ${C_DIM}Версия: %-8s · Каталог: %-37s${C_RESET} ${C_CYAN}║${C_RESET}\n" "$VERSION" "$(pwd | sed 's/.*\///')"
   printf "${C_CYAN}╚═══════════════════════════════════════════════════════════════════════╝${C_RESET}\n\n"
 
+  detect_existing_installation
+  echo
+
   printf "  ${C_BOLD}Выберите профиль развёртывания или действие:${C_RESET}\n\n"
   printf "  ${C_GREEN}[1] 🚀 All-in-One Enterprise${C_RESET} (Все модули на этом сервере)\n"
   printf "      ${C_DIM}Core 2FA + Chat + Recorder + Ticket + Guard${C_RESET}\n\n"
@@ -578,7 +674,7 @@ run_interactive_tui() {
   printf "  ${C_YELLOW}[6] 📡 Установка Relay${C_RESET} (Для удалённого филиала)\n\n"
   divider
   printf "  ${C_WHITE}[7] 🔄 Обновление контейнеров (Pull всех или конкретного)${C_RESET}\n"
-  printf "  ${C_WHITE}[8] 📊 Статус контейнеров и логи${C_RESET}\n"
+  printf "  ${C_WHITE}[8] 📊 Инспекция путей, портов и статус контейнеров${C_RESET}\n"
   printf "  ${C_RED}[9] ❌ Выход${C_RESET}\n\n"
 
   local choice=""
@@ -605,7 +701,23 @@ run_interactive_tui() {
         update_services "all"
       fi
       ;;
-    8) $DC_CMD ps; divider; $DC_CMD logs --tail=30 ;;
+    8)
+      detect_existing_installation
+      divider
+      say "Запущенные контейнеры и порты Docker:"
+      $DC_CMD ps 2>/dev/null || docker ps
+      divider
+      say "Инспекция сетевых портов:"
+      for p in 80 443 8080 8097 8095 8096 8090 3478 5349 1812; do
+        if port_busy_tcp "$p" || port_busy_udp "$p" || docker_port_busy "$p"; then
+          local o; o="$(inspect_port_owner "$p")"
+          printf "   • Порт %-6s : %s\n" "$p" "$o"
+        fi
+      done
+      divider
+      say "Последние строки логов:"
+      $DC_CMD logs --tail=25 2>/dev/null || true
+      ;;
     9) exit 0 ;;
     *) warn "Неверный выбор: '$choice'. Выход."; exit 1 ;;
   esac
