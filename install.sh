@@ -4,9 +4,10 @@
 # Документация: https://github.com/aligorov/ligament
 #
 # Режимы работы:
-#   1. Интерактивный TUI-терминал с псевдографикой (по умолчанию при вызове в TTY)
+#   1. Интерактивный TUI-терминал с псевдографикой (по умолчанию)
 #   2. CLI-автоматизация:
 #      ./install.sh --all                        # Все центральные модули
+#      ./install.sh --core-only                  # Только ядро 2FA
 #      ./install.sh --modules core,chat,guard    # Выборочная установка
 #      ./install.sh --role ice                   # Установка ICE (Coturn + Certbot)
 #      ./install.sh --role relay                 # Установка узла Relay для филиала
@@ -18,8 +19,14 @@
 # ==============================================================================
 set -euo pipefail
 
-VERSION="2.1.0"
+# Если скрипт вызван через pipe (curl | bash), переподключаем stdin к терминалу
+if [[ ! -t 0 && -c /dev/tty ]]; then
+  exec < /dev/tty
+fi
+
+VERSION="2.1.1"
 DEFAULT_INSTALL_DIR="/opt/ligament"
+RAW_BASE_URL="https://raw.githubusercontent.com/aligorov/ligament/main"
 target_dir=""
 env_file=".env"
 compose_file="docker-compose.yml"
@@ -61,13 +68,32 @@ warn()   { printf "${C_YELLOW}[!][Предупреждение]${C_RESET} %b\n" 
 die()    { printf "${C_RED}[X][Ошибка]${C_RESET} %b\n" "$*" >&2; exit 1; }
 divider(){ printf "${C_DIM}────────────────────────────────────────────────────────────────────────${C_RESET}\n"; }
 
+# Безопасное чтение ввода пользователя с поддержкой /dev/tty и очисткой \r
+prompt_read() {
+  local prompt_text="$1" var_name="$2" default_val="${3:-}"
+  local val=""
+  printf "%b" "$prompt_text"
+  if [[ -t 0 ]]; then
+    read -r val || true
+  elif [[ -c /dev/tty ]]; then
+    read -r val < /dev/tty || true
+  else
+    val=""
+  fi
+  val="$(printf '%s' "$val" | tr -d '\r\n')"
+  if [[ -z "$val" && -n "$default_val" ]]; then
+    val="$default_val"
+  fi
+  eval "$var_name=\"\$val\""
+}
+
 # Определение рабочей директории
 init_workdir() {
   if [[ -n "$target_dir" ]]; then
     mkdir -p "$target_dir"
     cd "$target_dir"
   elif [[ -f "docker-compose.yml" && -f "install.sh" ]]; then
-    # Уже находимся в клонированном репозитории
+    # Уже находимся в каталоге репозитория
     target_dir="$(pwd)"
   elif [[ "$(id -u)" -eq 0 ]]; then
     target_dir="$DEFAULT_INSTALL_DIR"
@@ -78,6 +104,29 @@ init_workdir() {
     mkdir -p "$target_dir"
     cd "$target_dir"
   fi
+}
+
+# Гарантия наличия манифестов (автозагрузка с GitHub при curl | bash)
+ensure_required_files() {
+  ensure_file() {
+    local f="$1"
+    if [[ ! -f "$f" ]]; then
+      mkdir -p "$(dirname "$f")"
+      say "Загрузка конфигурации $f с GitHub..."
+      if ! curl -fsSL "$RAW_BASE_URL/$f" -o "$f"; then
+        warn "Не удалось загрузить $f с GitHub."
+      fi
+      [[ "$f" == *.sh ]] && chmod +x "$f" || true
+    fi
+  }
+
+  mkdir -p config
+  ensure_file "docker-compose.yml"
+  ensure_file "docker-compose.ice.yml"
+  ensure_file "docker-compose.relay.yml"
+  ensure_file "config/init-media-db.sh"
+  ensure_file "config/turnserver.conf"
+  ensure_file "config/relay.example.yaml"
 }
 
 # Генератор безопасных паролей
@@ -134,7 +183,7 @@ check_system_requirements() {
   fi
 
   # 4. Дисковое пространство
-  disk_free_mb="$(df -m . | awk 'NR==2 {print $4}')"
+  disk_free_mb="$(df -m . 2>/dev/null | awk 'NR==2 {print $4}' || echo 20000)"
   if [[ -n "$disk_free_mb" && "$disk_free_mb" -lt 5120 ]]; then
     warn "В каталоге установки доступно менее 5 ГБ диска ($((disk_free_mb / 1024)) ГБ свободно). Рекомендуется от 20+ ГБ."
   fi
@@ -315,13 +364,10 @@ ensure_env_file() {
 # РАЗВЁРТЫВАНИЕ ЦЕНТРАЛЬНОГО СЕРВЕРА
 # ------------------------------------------------------------------------------
 deploy_central() {
+  ensure_required_files
   say "Развёртывание Ligament Central Platform (Профили: $selected_modules)..."
   setup_docker_mirrors
 
-  # Осиротевший volume БД
-  local proj_name vol_db
-  proj_name="$(basename "$PWD")"
-  vol_db="${proj_name}_twofa_pgdata"
   if [[ "$fresh" -eq 1 ]]; then
     warn "Флаг --fresh: удаление старых контейнеров и томов базы данных..."
     $DC_CMD down -v --remove-orphans 2>/dev/null || true
@@ -388,22 +434,17 @@ deploy_central() {
 # РАЗВЁРТЫВАНИЕ ICE (WebRTC STUN/TURN) НА VPS
 # ------------------------------------------------------------------------------
 deploy_ice() {
+  ensure_required_files
   say "Развёртывание Ligament ICE (Coturn STUN/TURN + Let's Encrypt)..."
-  if [[ ! -f "docker-compose.ice.yml" ]]; then
-    die "Файл docker-compose.ice.yml не найден в $(pwd)"
-  fi
 
   if [[ -z "$ice_realm" ]]; then
-    printf "${C_BOLD}Введите публичный домен для TURN (например, turn.company.com): ${C_RESET}"
-    read -r ice_realm
+    prompt_read "${C_BOLD}Введите публичный домен для TURN (например, turn.company.com): ${C_RESET}" ice_realm
   fi
   [[ -z "$ice_realm" ]] && die "Домен TURN обязателен"
 
   if [[ -z "$ice_email" ]]; then
-    printf "${C_BOLD}Введите email для Let's Encrypt (для уведомлений SSL): ${C_RESET}"
-    read -r ice_email
+    prompt_read "${C_BOLD}Введите email для Let's Encrypt (для уведомлений SSL) [admin@$ice_realm]: ${C_RESET}" ice_email "admin@$ice_realm"
   fi
-  [[ -z "$ice_email" ]] && ice_email="admin@$ice_realm"
 
   local ice_pass
   ice_pass="$(gen_pass 32)"
@@ -421,6 +462,7 @@ EOF
   $DC_CMD --env-file .env.ice -f docker-compose.ice.yml pull
   $DC_CMD --env-file .env.ice -f docker-compose.ice.yml up -d
 
+  echo
   say "ICE сервер успешно запущен!"
   info "Параметры для интеграции в центральный .env ядра:"
   printf "  ${C_GREEN}LIG_TURN_SERVER=\"turn:%s:443\"${C_RESET}\n" "$ice_realm"
@@ -432,25 +474,23 @@ EOF
 # РАЗВЁРТЫВАНИЕ RELAY В ФИЛИАЛЕ
 # ------------------------------------------------------------------------------
 deploy_relay() {
+  ensure_required_files
   say "Развёртывание Ligament Relay (Edge-агент филиала)..."
-  if [[ ! -f "docker-compose.relay.yml" ]]; then
-    die "Файл docker-compose.relay.yml не найден в $(pwd)"
-  fi
 
   mkdir -p config
   if [[ ! -f "config/relay.yaml" ]]; then
     if [[ -z "$relay_core_url" ]]; then
-      printf "${C_BOLD}Введите URL центрального сервера (например, https://2fa.company.com): ${C_RESET}"
-      read -r relay_core_url
+      prompt_read "${C_BOLD}Введите URL центрального сервера [https://2fa.company.com]: ${C_RESET}" relay_core_url "https://2fa.company.com"
     fi
     if [[ -z "$relay_secret" ]]; then
-      printf "${C_BOLD}Введите пароль/секрет узла Relay: ${C_RESET}"
-      read -r relay_secret
+      prompt_read "${C_BOLD}Введите пароль/секрет узла Relay: ${C_RESET}" relay_secret
     fi
+    [[ -z "$relay_secret" ]] && die "Пароль узла Relay обязателен"
+
     cat <<EOF > config/relay.yaml
 core:
-  url: "${relay_core_url:-https://2fa.company.com}"
-  password: "${relay_secret:-SecretPass}"
+  url: "${relay_core_url}"
+  password: "${relay_secret}"
 local:
   http_port: 8082
   radius_port: 1812
@@ -489,10 +529,11 @@ deploy_remote_ssh() {
     mkdir -p /opt/ligament
   '
 
+  ensure_required_files
   if [[ "$target_role" == "ice" ]]; then
     say "Копирование конфигурации ICE..."
     scp $ssh_opts docker-compose.ice.yml config/turnserver.conf "${remote_user}@${host}:/opt/ligament/"
-    ssh $ssh_opts "${remote_user}@${host}" "cd /opt/ligament && chmod +x install.sh 2>/dev/null || true; docker compose -f docker-compose.ice.yml pull && docker compose -f docker-compose.ice.yml up -d"
+    ssh $ssh_opts "${remote_user}@${host}" "cd /opt/ligament && docker compose -f docker-compose.ice.yml pull && docker compose -f docker-compose.ice.yml up -d"
     say "ICE успешно развернут на удаленном VPS $host!"
   elif [[ "$target_role" == "relay" ]]; then
     say "Копирование конфигурации Relay..."
@@ -524,8 +565,7 @@ update_services() {
 # ИНТЕРАКТИВНОЕ TUI-МЕНЮ
 # ------------------------------------------------------------------------------
 run_interactive_tui() {
-  clear
-  printf "${C_CYAN}╔═══════════════════════════════════════════════════════════════════════╗${C_RESET}\n"
+  printf "\n${C_CYAN}╔═══════════════════════════════════════════════════════════════════════╗${C_RESET}\n"
   printf "${C_CYAN}║${C_RESET}  ${C_BOLD}🛡️  LIGAMENT ENTERPRISE PLATFORM — УСТАНОВКА И ОРКЕСТРАЦИЯ${C_RESET}         ${C_CYAN}║${C_RESET}\n"
   printf "${C_CYAN}║${C_RESET}  ${C_DIM}Версия: %-8s · Каталог: %-37s${C_RESET} ${C_CYAN}║${C_RESET}\n" "$VERSION" "$(pwd | sed 's/.*\///')"
   printf "${C_CYAN}╚═══════════════════════════════════════════════════════════════════════╝${C_RESET}\n\n"
@@ -545,9 +585,10 @@ run_interactive_tui() {
   printf "  ${C_WHITE}[7] 🔄 Обновление контейнеров (Pull всех или конкретного)${C_RESET}\n"
   printf "  ${C_WHITE}[8] 📊 Статус контейнеров и логи${C_RESET}\n"
   printf "  ${C_RED}[9] ❌ Выход${C_RESET}\n\n"
-  printf "${C_BOLD}Введите номер действия [1-9]: ${C_RESET}"
 
-  read -r choice
+  local choice=""
+  prompt_read "${C_BOLD}Введите номер действия [1-9]: ${C_RESET}" choice
+
   case "$choice" in
     1) selected_modules="all"; ensure_env_file; deploy_central ;;
     2) selected_modules="core"; ensure_env_file; deploy_central ;;
@@ -559,11 +600,11 @@ run_interactive_tui() {
       echo
       printf "  [1] Обновить ВСЕ модули стека\n"
       printf "  [2] Обновить конкретный модуль (twofa, chat, recorder, ticket, guard)\n"
-      printf "Выбор [1-2]: "
-      read -r u_choice
+      local u_choice=""
+      prompt_read "Выбор [1-2]: " u_choice "1"
       if [[ "$u_choice" == "2" ]]; then
-        printf "Имя сервиса: "
-        read -r s_name
+        local s_name=""
+        prompt_read "Имя сервиса: " s_name "twofa"
         update_services "$s_name"
       else
         update_services "all"
@@ -571,7 +612,7 @@ run_interactive_tui() {
       ;;
     8) $DC_CMD ps; divider; $DC_CMD logs --tail=30 ;;
     9) exit 0 ;;
-    *) warn "Неверный выбор. Выход."; exit 1 ;;
+    *) warn "Неверный выбор: '$choice'. Выход."; exit 1 ;;
   esac
 }
 
