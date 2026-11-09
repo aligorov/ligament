@@ -19,12 +19,7 @@
 # ==============================================================================
 set -euo pipefail
 
-# Если скрипт вызван через pipe (curl | bash), переподключаем stdin к терминалу
-if [[ ! -t 0 && -c /dev/tty ]]; then
-  exec < /dev/tty
-fi
-
-VERSION="2.1.1"
+VERSION="2.1.2"
 DEFAULT_INSTALL_DIR="/opt/ligament"
 RAW_BASE_URL="https://raw.githubusercontent.com/aligorov/ligament/main"
 target_dir=""
@@ -73,10 +68,10 @@ prompt_read() {
   local prompt_text="$1" var_name="$2" default_val="${3:-}"
   local val=""
   printf "%b" "$prompt_text"
-  if [[ -t 0 ]]; then
-    read -r val || true
-  elif [[ -c /dev/tty ]]; then
+  if [[ -c /dev/tty ]]; then
     read -r val < /dev/tty || true
+  elif [[ -t 0 ]]; then
+    read -r val || true
   else
     val=""
   fi
