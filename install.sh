@@ -19,7 +19,7 @@
 # ==============================================================================
 set -euo pipefail
 
-VERSION="2.1.2"
+VERSION="2.2.0"
 DEFAULT_INSTALL_DIR="/opt/ligament"
 RAW_BASE_URL="https://raw.githubusercontent.com/aligorov/ligament/main"
 target_dir=""
@@ -119,7 +119,6 @@ ensure_required_files() {
   ensure_file "docker-compose.yml"
   ensure_file "docker-compose.ice.yml"
   ensure_file "docker-compose.relay.yml"
-  ensure_file "config/init-media-db.sh"
   ensure_file "config/turnserver.conf"
   ensure_file "config/relay.example.yaml"
 }
@@ -319,36 +318,110 @@ resolve_free_port() {
 # ------------------------------------------------------------------------------
 # ИНСПЕКЦИЯ ПУТЕЙ И ПРОВЕРКА УЖЕ УСТАНОВЛЕННЫХ КОМПОНЕНТОВ
 # ------------------------------------------------------------------------------
+get_container_info() {
+  local name="$1"
+  local status=""
+  status="$(docker ps --filter "name=^/${name}$" --format '{{.Status}}' 2>/dev/null || true)"
+  if [[ -n "$status" ]]; then
+    echo "UP|$status"
+    return 0
+  fi
+  status="$(docker ps -a --filter "name=^/${name}$" --format '{{.Status}}' 2>/dev/null || true)"
+  if [[ -n "$status" ]]; then
+    echo "EXITED|$status"
+    return 0
+  fi
+  echo "NONE|"
+}
+
+get_volume_mountpoint() {
+  local vol="$1"
+  local mp=""
+  for v in "$vol" "ligament_${vol}" "ligament-${vol}" "ligament_${vol//-/_}"; do
+    mp="$(docker volume inspect "$v" --format '{{.Mountpoint}}' 2>/dev/null || true)"
+    if [[ -n "$mp" ]]; then
+      echo "$mp"
+      return 0
+    fi
+  done
+  echo ""
+}
+
 detect_existing_installation() {
   local cur_path; cur_path="$(pwd -P)"
-  say "Инспекция путей и проверка существующей установки..."
-  info "Рабочий каталог: ${C_BOLD}$cur_path${C_RESET}"
+  say "Инспекция окружения, путей и статуса компонентов Ligament..."
+
+  local d_root="/var/lib/docker"
+  if command -v docker >/dev/null 2>&1; then
+    d_root="$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || echo /var/lib/docker)"
+  fi
+  local disk_avail; disk_avail="$(df -h "$d_root" 2>/dev/null | awk 'NR==2 {print $4 " свободно из " $2}' || echo "N/A")"
+  info "Каталог установки: ${C_BOLD}$cur_path${C_RESET}"
+  info "Хранилище Docker:  ${C_BOLD}$d_root${C_RESET} (${C_GREEN}$disk_avail${C_RESET})"
 
   if [[ -f "$env_file" ]]; then
     local profs; profs="$(grep '^COMPOSE_PROFILES=' "$env_file" 2>/dev/null | cut -d= -f2 || echo "core")"
     local p_app; p_app="$(grep '^LIG_APP_PORT=' "$env_file" 2>/dev/null | cut -d= -f2 || echo "8080")"
-    info "Конфигурация Core: .env присутствует (активные профили: ${C_GREEN}$profs${C_RESET}, порт: ${C_CYAN}:$p_app${C_RESET})"
+    info "Конфигурация Core: .env активен (профили: ${C_GREEN}$profs${C_RESET}, порт: ${C_CYAN}:$p_app${C_RESET})"
   fi
 
   if [[ -f ".env.ice" ]]; then
     local r; r="$(grep '^ICE_REALM=' .env.ice 2>/dev/null | cut -d= -f2 || echo "")"
-    info "Конфигурация ICE: .env.ice найдена (домен: ${C_GREEN}${r:-не задан}${C_RESET})"
+    info "Конфигурация ICE: .env.ice активен (домен: ${C_GREEN}${r:-не задан}${C_RESET})"
   fi
 
   if [[ -f "config/relay.yaml" ]]; then
     info "Конфигурация Relay: config/relay.yaml присутствует"
   fi
 
-  local existing_conts
-  existing_conts="$(docker ps -a --filter "name=ligament" --format '{{.Names}}|{{.Status}}|{{.Ports}}' 2>/dev/null || true)"
-  if [[ -n "$existing_conts" ]]; then
-    say "Обнаруженные контейнеры Ligament:"
-    while IFS='|' read -r c_name c_status c_ports; do
-      printf "   • ${C_BOLD}%-24s${C_RESET} [${C_CYAN}%s${C_RESET}] %s\n" "$c_name" "$c_status" "$c_ports"
-    done <<< "$existing_conts"
-  else
-    info "Активных контейнеров Ligament пока не обнаружено."
-  fi
+  echo
+  printf "  ${C_BOLD}%-22s %-20s %-16s %s${C_RESET}\n" "МОДУЛЬ" "СТАТУС СЕРВИСА" "ПОРТЫ" "ТОМ ДАННЫХ НА ХОСТЕ"
+  printf "  ${C_DIM}────────────────────── ──────────────────── ──────────────── ───────────────────────────────────${C_RESET}\n"
+
+  render_mod_row() {
+    local title="$1" cont_app="$2" cont_db="$3" ports="$4" vol_name="$5"
+    local s_app; s_app="$(get_container_info "$cont_app")"
+    local status_display=""
+    local app_state="${s_app%%|*}"
+
+    if [[ "$app_state" == "UP" ]]; then
+      status_display="${C_GREEN}✔ РАБОТАЕТ${C_RESET}"
+    elif [[ "$app_state" == "EXITED" ]]; then
+      status_display="${C_RED}■ ОСТАНОВЛЕН${C_RESET}"
+    else
+      status_display="${C_DIM}· Не установлен${C_RESET}"
+    fi
+
+    local vol_path=""
+    if [[ -n "$vol_name" ]]; then
+      vol_path="$(get_volume_mountpoint "$vol_name")"
+      if [[ -z "$vol_path" ]]; then
+        vol_path="${C_DIM}${vol_name}${C_RESET}"
+      else
+        vol_path="${C_WHITE}${vol_path}${C_RESET}"
+      fi
+    else
+      vol_path="${C_DIM}—${C_RESET}"
+    fi
+
+    printf "  %-22s %-29b %-16s %b\n" "$title" "$status_display" "$ports" "$vol_path"
+  }
+
+  local p_core; p_core="$(grep '^LIG_APP_PORT=' "$env_file" 2>/dev/null | cut -d= -f2 || echo 8080)"
+  local p_chat; p_chat="$(grep '^LIG_CHAT_PORT=' "$env_file" 2>/dev/null | cut -d= -f2 || echo 8097)"
+  local p_rec;  p_rec="$(grep '^LIG_RECORDER_PORT=' "$env_file" 2>/dev/null | cut -d= -f2 || echo 8095)"
+  local p_tick; p_tick="$(grep '^LIG_TICKET_PORT=' "$env_file" 2>/dev/null | cut -d= -f2 || echo 8096)"
+  local p_grd;  p_grd="$(grep '^LIG_GUARD_PORT=' "$env_file" 2>/dev/null | cut -d= -f2 || echo 8090)"
+
+  render_mod_row "🛡️ Core 2FA (Auth)"     "ligament-core"    "ligament-core-db"     ":$p_core, :1812" "twofa_pgdata"
+  render_mod_row "💬 Ligament Chat"       "ligament-chat"    "ligament-chat-db"     ":$p_chat"        "chat_pgdata"
+  render_mod_row "📹 Recorder & AI"       "ligament-recoder" "ligament-recorder-db" ":$p_rec"         "recorder_pgdata"
+  render_mod_row "🎫 Helpdesk Ticket"     "ligament-ticket"  "ligament-ticket-db"   ":$p_tick"        "ticket_pgdata"
+  render_mod_row "🪪 Guard Monitor"       "ligament-guard"   ""                     ":$p_grd"         ""
+  render_mod_row "🧊 WebRTC ICE (VPS)"    "ligament-ice"     "ligament-ice-certbot" ":5349, :3478"    "ligament_ice_certs"
+  render_mod_row "📡 Branch Relay"        "ligament-relay"   ""                     ":8082, :1812"    ""
+
+  printf "  ${C_DIM}─────────────────────────────────────────────────────────────────────────────────────────────${C_RESET}\n"
 }
 
 # ------------------------------------------------------------------------------
@@ -495,7 +568,7 @@ deploy_ice() {
     docker rm -f ligament-ice ligament-ice-certbot 2>/dev/null || true
   fi
 
-  local def_realm="de-turn.ligam.org" def_email=""
+  local def_realm="turn.company.com" def_email=""
   if [[ -f .env.ice ]]; then
     def_realm="$(grep '^ICE_REALM=' .env.ice 2>/dev/null | cut -d= -f2 || true)"
     def_email="$(grep '^ACME_EMAIL=' .env.ice 2>/dev/null | cut -d= -f2 || true)"
@@ -650,6 +723,58 @@ update_services() {
 }
 
 # ------------------------------------------------------------------------------
+# ПОДКЛЮЧЕНИЕ ОТДЕЛЬНОГО МОДУЛЯ (ИНКРЕМЕНТАЛЬНЫЙ ЗАПУСК БЕЗ ПЕРЕЗАГРУЗКИ ЯДРА)
+# ------------------------------------------------------------------------------
+add_or_start_module() {
+  local mod="$1"
+  ensure_required_files
+  ensure_env_file
+
+  local current_profs
+  current_profs="$(grep '^COMPOSE_PROFILES=' "$env_file" 2>/dev/null | cut -d= -f2 || echo "core")"
+
+  if [[ "$current_profs" == "all" ]]; then
+    selected_modules="all"
+  elif [[ "$current_profs" != *"$mod"* ]]; then
+    selected_modules="${current_profs},${mod}"
+  else
+    selected_modules="$current_profs"
+  fi
+
+  upsert_env "COMPOSE_PROFILES" "$selected_modules"
+  say "Подключение модуля [$mod] к активному профилю: $selected_modules..."
+
+  local svcs=("$mod")
+  case "$mod" in
+    chat)     svcs=("chat-db" "chat") ;;
+    recorder) svcs=("recorder-db" "recorder") ;;
+    ticket)   svcs=("ticket-db" "ticket") ;;
+    guard)    svcs=("guard") ;;
+    core)     svcs=("db" "twofa") ;;
+  esac
+
+  say "Загрузка Docker-образов для: ${svcs[*]}..."
+  $DC_CMD pull "${svcs[@]}" || warn "Некоторые образы не удалось обновить, использую локальные кэшированные..."
+
+  say "Запуск сервисов без остановки работающих контейнеров (--no-recreate)..."
+  $DC_CMD up -d --no-recreate "${svcs[@]}"
+
+  local server_ip
+  server_ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
+  [[ -z "$server_ip" ]] && server_ip="127.0.0.1"
+
+  echo
+  say "Модуль [$mod] успешно запущен!"
+  case "$mod" in
+    chat)     info "Ligament Chat доступен: ${C_CYAN}http://${server_ip}:$(grep '^LIG_CHAT_PORT=' "$env_file" | cut -d= -f2)${C_RESET}" ;;
+    recorder) info "Ligament Recorder доступен: ${C_CYAN}http://${server_ip}:$(grep '^LIG_RECORDER_PORT=' "$env_file" | cut -d= -f2)${C_RESET}" ;;
+    ticket)   info "Ligament Ticket доступен: ${C_CYAN}http://${server_ip}:$(grep '^LIG_TICKET_PORT=' "$env_file" | cut -d= -f2)${C_RESET}" ;;
+    guard)    info "Ligament Guard доступен: ${C_CYAN}http://${server_ip}:$(grep '^LIG_GUARD_PORT=' "$env_file" | cut -d= -f2)${C_RESET}" ;;
+    core)     info "Ligament Core 2FA доступен: ${C_CYAN}http://${server_ip}:$(grep '^LIG_APP_PORT=' "$env_file" | cut -d= -f2)${C_RESET}" ;;
+  esac
+}
+
+# ------------------------------------------------------------------------------
 # ИНТЕРАКТИВНОЕ TUI-МЕНЮ
 # ------------------------------------------------------------------------------
 run_interactive_tui() {
@@ -661,33 +786,35 @@ run_interactive_tui() {
   detect_existing_installation
   echo
 
-  printf "  ${C_BOLD}Выберите профиль развёртывания или действие:${C_RESET}\n\n"
-  printf "  ${C_GREEN}[1] 🚀 All-in-One Enterprise${C_RESET} (Все модули на этом сервере)\n"
+  printf "  ${C_BOLD}Выберите действие или модуль для установки:${C_RESET}\n\n"
+  printf "  ${C_GREEN}[1] 🚀 All-in-One Enterprise${C_RESET} (Развернуть весь стек модулей разом)\n"
   printf "      ${C_DIM}Core 2FA + Chat + Recorder + Ticket + Guard${C_RESET}\n\n"
-  printf "  ${C_CYAN}[2] 🛡️ Core Security Only${C_RESET} (Минимальное базовое ядро)\n"
-  printf "      ${C_DIM}Авторизация 2FA, Web-кабинет, RADIUS, СКУД-драйверы, PostgreSQL${C_RESET}\n\n"
-  printf "  ${C_BLUE}[3] 💬 Unified Communications${C_RESET} (Связь и запись звонков)\n"
-  printf "      ${C_DIM}Core 2FA + Корпоративный Chat + Recorder + Ticket${C_RESET}\n\n"
-  printf "  ${C_MAGENTA}[4] 🏢 Physical Security & Access${C_RESET} (Физическая безопасность)\n"
-  printf "      ${C_DIM}Core 2FA + Монитор охраны Guard${C_RESET}\n\n"
-  printf "  ${C_YELLOW}[5] 🧊 Установка ICE (Coturn STUN/TURN)${C_RESET} (Локально или на VPS)\n"
-  printf "  ${C_YELLOW}[6] 📡 Установка Relay${C_RESET} (Для удалённого филиала)\n\n"
+  printf "  ${C_CYAN}[2] 🛡️  Core 2FA Security Core${C_RESET} (Базовое ядро безопасности + Web + RADIUS)\n"
+  printf "  ${C_BLUE}[3] 💬 Ligament Chat${C_RESET} (Корпоративный мессенджер + P2P WebRTC сигнализация)\n"
+  printf "  ${C_MAGENTA}[4] 📹 Ligament Recorder & AI${C_RESET} (Запись сессий/звонков + AI Worker)\n"
+  printf "  ${C_YELLOW}[5] 🎫 Ligament Ticket${C_RESET} (Helpdesk & система инцидентов)\n"
+  printf "  ${C_WHITE}[6] 🪪 Ligament Guard${C_RESET} (Kiosk монитор КПП и турникетов)\n\n"
   divider
-  printf "  ${C_WHITE}[7] 🔄 Обновление контейнеров (Pull всех или конкретного)${C_RESET}\n"
-  printf "  ${C_WHITE}[8] 📊 Инспекция путей, портов и статус контейнеров${C_RESET}\n"
-  printf "  ${C_RED}[9] ❌ Выход${C_RESET}\n\n"
+  printf "  ${C_YELLOW}[7] 🧊 Ligament ICE${C_RESET} (Медиа-шлюз Coturn STUN/TURN на VPS)\n"
+  printf "  ${C_YELLOW}[8] 📡 Ligament Relay${C_RESET} (Edge-агент филиала)\n\n"
+  divider
+  printf "  ${C_WHITE}[9] 🔄 Обновление контейнеров (Pull & Restart)${C_RESET}\n"
+  printf "  ${C_WHITE}[10] 📊 Детальная инспекция путей, томов, портов и логи${C_RESET}\n"
+  printf "  ${C_RED}[0] ❌ Выход${C_RESET}\n\n"
 
   local choice=""
-  prompt_read "${C_BOLD}Введите номер действия [1-9]: ${C_RESET}" choice
+  prompt_read "${C_BOLD}Введите номер действия [0-10]: ${C_RESET}" choice
 
   case "$choice" in
     1) selected_modules="all"; ensure_env_file; deploy_central ;;
-    2) selected_modules="core"; ensure_env_file; deploy_central ;;
-    3) selected_modules="core,chat,recorder,ticket"; ensure_env_file; deploy_central ;;
-    4) selected_modules="core,guard"; ensure_env_file; deploy_central ;;
-    5) deploy_ice ;;
-    6) deploy_relay ;;
-    7)
+    2) add_or_start_module "core" ;;
+    3) add_or_start_module "chat" ;;
+    4) add_or_start_module "recorder" ;;
+    5) add_or_start_module "ticket" ;;
+    6) add_or_start_module "guard" ;;
+    7) deploy_ice ;;
+    8) deploy_relay ;;
+    9)
       echo
       printf "  [1] Обновить ВСЕ модули стека\n"
       printf "  [2] Обновить конкретный модуль (twofa, chat, recorder, ticket, guard)\n"
@@ -701,13 +828,21 @@ run_interactive_tui() {
         update_services "all"
       fi
       ;;
-    8)
+    10)
       detect_existing_installation
+      divider
+      say "Инспекция томов и физических путей на диске:"
+      for v in twofa_pgdata chat_pgdata chat_data recorder_pgdata recorder_data ticket_pgdata ice_certs ligament_ice_certs; do
+        local mp; mp="$(get_volume_mountpoint "$v")"
+        if [[ -n "$mp" ]]; then
+          printf "   • Том %-22s -> %s\n" "$v" "$mp"
+        fi
+      done
       divider
       say "Запущенные контейнеры и порты Docker:"
       $DC_CMD ps 2>/dev/null || docker ps
       divider
-      say "Инспекция сетевых портов:"
+      say "Инспекция сетевых портов на хосте:"
       for p in 80 443 8080 8097 8095 8096 8090 3478 5349 1812; do
         if port_busy_tcp "$p" || port_busy_udp "$p" || docker_port_busy "$p"; then
           local o; o="$(inspect_port_owner "$p")"
@@ -718,7 +853,7 @@ run_interactive_tui() {
       say "Последние строки логов:"
       $DC_CMD logs --tail=25 2>/dev/null || true
       ;;
-    9) exit 0 ;;
+    0|q|exit) exit 0 ;;
     *) warn "Неверный выбор: '$choice'. Выход."; exit 1 ;;
   esac
 }

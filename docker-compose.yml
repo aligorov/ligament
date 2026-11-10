@@ -69,17 +69,16 @@ services:
       - ligament-net
 
   # ----------------------------------------------------------------------------
-  # 3. MEDIA DB: Изолированный PostgreSQL для медиа-модулей (Unix domain socket)
-  # Zero-ENV архитектура для Recorder, Chat и Ticket (без паролей в DSN)
+  # 3. CHAT: База данных PostgreSQL (Изолированная, Unix domain socket)
   # ----------------------------------------------------------------------------
-  media-db:
+  chat-db:
     image: postgres:16-alpine
-    container_name: ligament-media-db
-    profiles: ["chat", "recorder", "ticket", "all"]
+    container_name: ligament-chat-db
+    profiles: ["chat", "all"]
     restart: unless-stopped
     environment:
-      POSTGRES_USER: recorder
-      POSTGRES_DB: ligament_recorder
+      POSTGRES_USER: chat
+      POSTGRES_DB: ligament_chat
       POSTGRES_HOST_AUTH_METHOD: trust
     command:
       - "postgres"
@@ -90,11 +89,10 @@ services:
       - "-c"
       - "unix_socket_permissions=0777"
     volumes:
-      - media_pgdata:/var/lib/postgresql/data
-      - media_pgsocket:/var/run/postgresql
-      - ./config/init-media-db.sh:/docker-entrypoint-initdb.d/init-media-db.sh:ro
+      - chat_pgdata:/var/lib/postgresql/data
+      - chat_pgsocket:/var/run/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h /var/run/postgresql -U recorder -d ligament_recorder"]
+      test: ["CMD-SHELL", "pg_isready -h /var/run/postgresql -U chat -d ligament_chat"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -110,12 +108,12 @@ services:
     profiles: ["chat", "all"]
     restart: unless-stopped
     depends_on:
-      media-db:
+      chat-db:
         condition: service_healthy
       twofa:
         condition: service_started
     volumes:
-      - media_pgsocket:/var/run/postgresql
+      - chat_pgsocket:/var/run/postgresql
       - chat_data:/var/lib/ligament-chat
     ports:
       - "${LIG_CHAT_PORT:-8097}:8097"
@@ -138,7 +136,38 @@ services:
       - ligament-net
 
   # ----------------------------------------------------------------------------
-  # 5. RECORDER: Запись сессий/звонков + AI Worker (Zero-ENV)
+  # 5. RECORDER: База данных PostgreSQL (Изолированная, Zero-ENV Unix socket)
+  # ----------------------------------------------------------------------------
+  recorder-db:
+    image: postgres:16-alpine
+    container_name: ligament-recorder-db
+    profiles: ["recorder", "all"]
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: recorder
+      POSTGRES_DB: ligament_recorder
+      POSTGRES_HOST_AUTH_METHOD: trust
+    command:
+      - "postgres"
+      - "-c"
+      - "listen_addresses="
+      - "-c"
+      - "unix_socket_directories=/var/run/postgresql"
+      - "-c"
+      - "unix_socket_permissions=0777"
+    volumes:
+      - recorder_pgdata:/var/lib/postgresql/data
+      - recorder_pgsocket:/var/run/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h /var/run/postgresql -U recorder -d ligament_recorder"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - ligament-net
+
+  # ----------------------------------------------------------------------------
+  # 6. RECORDER: Запись сессий/звонков + AI Worker (Zero-ENV)
   # ----------------------------------------------------------------------------
   recorder:
     image: aligorov/ligament_recoder:${RECORDER_IMAGE_TAG:-latest}
@@ -146,10 +175,10 @@ services:
     profiles: ["recorder", "all"]
     restart: unless-stopped
     depends_on:
-      media-db:
+      recorder-db:
         condition: service_healthy
     volumes:
-      - media_pgsocket:/var/run/postgresql
+      - recorder_pgsocket:/var/run/postgresql
       - recorder_data:/var/lib/ligament-recorder
     ports:
       - "${LIG_RECORDER_PORT:-8095}:8095"
@@ -168,7 +197,38 @@ services:
       - ligament-net
 
   # ----------------------------------------------------------------------------
-  # 6. TICKET: Helpdesk / Заявки / Инциденты (Zero-Blob: медиа в Recorder)
+  # 7. TICKET: База данных PostgreSQL (Изолированная, Unix domain socket)
+  # ----------------------------------------------------------------------------
+  ticket-db:
+    image: postgres:16-alpine
+    container_name: ligament-ticket-db
+    profiles: ["ticket", "all"]
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ticket
+      POSTGRES_DB: ligament_ticket
+      POSTGRES_HOST_AUTH_METHOD: trust
+    command:
+      - "postgres"
+      - "-c"
+      - "listen_addresses="
+      - "-c"
+      - "unix_socket_directories=/var/run/postgresql"
+      - "-c"
+      - "unix_socket_permissions=0777"
+    volumes:
+      - ticket_pgdata:/var/lib/postgresql/data
+      - ticket_pgsocket:/var/run/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h /var/run/postgresql -U ticket -d ligament_ticket"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - ligament-net
+
+  # ----------------------------------------------------------------------------
+  # 8. TICKET: Helpdesk / Заявки / Инциденты (Zero-Blob: медиа в Recorder)
   # ----------------------------------------------------------------------------
   ticket:
     image: aligorov/ligament_ticket:${TICKET_IMAGE_TAG:-latest}
@@ -176,12 +236,12 @@ services:
     profiles: ["ticket", "all"]
     restart: unless-stopped
     depends_on:
-      media-db:
+      ticket-db:
         condition: service_healthy
       twofa:
         condition: service_started
     volumes:
-      - media_pgsocket:/var/run/postgresql
+      - ticket_pgsocket:/var/run/postgresql
     ports:
       - "${LIG_TICKET_PORT:-8096}:8096"
     command:
@@ -201,7 +261,7 @@ services:
       - ligament-net
 
   # ----------------------------------------------------------------------------
-  # 7. GUARD: Kiosk-монитор КПП и турникетов (SSE поток проходов охраны)
+  # 9. GUARD: Kiosk-монитор КПП и турникетов (SSE поток проходов охраны)
   # ----------------------------------------------------------------------------
   guard:
     image: aligorov/ligament_guard:${GUARD_IMAGE_TAG:-latest}
@@ -223,10 +283,14 @@ services:
 
 volumes:
   twofa_pgdata:
-  media_pgdata:
-  media_pgsocket:
+  chat_pgdata:
+  chat_pgsocket:
   chat_data:
+  recorder_pgdata:
+  recorder_pgsocket:
   recorder_data:
+  ticket_pgdata:
+  ticket_pgsocket:
 
 networks:
   ligament-net:
