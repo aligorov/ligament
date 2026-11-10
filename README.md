@@ -178,29 +178,38 @@ Running `./install.sh` in an interactive terminal launches the ANSI-based text U
 ```text
 ╔═══════════════════════════════════════════════════════════════════════╗
 ║  🛡️  LIGAMENT ENTERPRISE PLATFORM — INSTALLER & ORCHESTRATOR         ║
-║  Version: 2.1.0 · Working Dir: /opt/ligament                          ║
+║  Version: 2.3.0 · Working Dir: ligament                               ║
 ╚═══════════════════════════════════════════════════════════════════════╝
 
-  Choose deployment profile or action:
+  MODULE                 DOCKER STATUS              PORTS            HOST DATA VOLUME
+  ────────────────────── ────────────────────────── ──────────────── ───────────────────────────────────
+  🛡️ Core 2FA (Auth)     · Not installed            (recom: :8080)   twofa_pgdata
+  💬 Ligament Chat       · Not installed            (recom: :8097)   chat_pgdata
+  📹 Recorder & AI       · Not installed            (recom: :8095)   recorder_pgdata
+  🎫 Helpdesk Ticket     · Not installed            (recom: :8096)   ticket_pgdata
+  🪪 Guard Monitor       · Not installed            (recom: :8090)   —
+  🧊 WebRTC ICE (VPS)    · Not installed            (recom: :5349)   ligament_ice_certs
+  📡 Branch Relay        · Not installed            (recom: :8082)   —
+  ─────────────────────────────────────────────────────────────────────────────────────────────
 
-  [1] 🚀 All-in-One Enterprise (All modules on this host)
+  Choose action or module to deploy:
+
+  [1] 🚀 All-in-One Enterprise (Deploy entire platform stack)
       Core 2FA + Chat + Recorder + Ticket + Guard
 
-  [2] 🛡️ Core Security Only (Minimal Base Engine)
-      2FA Auth, Web Portal, RADIUS, PACS Drivers, PostgreSQL
-
-  [3] 💬 Unified Communications (Chat & Call Recording)
-      Core 2FA + Corporate Chat + Recorder + Ticket
-
-  [4] 🏢 Physical Security & Access (Facility Security)
-      Core 2FA + Guard Kiosk Monitor
-
-  [5] 🧊 Install ICE (Coturn STUN/TURN) (Local or remote VPS)
-  [6] 📡 Install Relay (For remote branch office)
-  ────────────────────────────────────────────────────────────────────────
-  [7] 🔄 Update Containers (Pull all or single module)
-  [8] 📊 Container Status & Logs
-  [9] ❌ Exit
+  [2] 🛡️  Core 2FA Security Core (Base security core + Web + RADIUS)
+  [3] 💬 Ligament Chat (Corporate messenger + P2P WebRTC signaling)
+  [4] 📹 Ligament Recorder & AI (Session/call recorder + AI Worker)
+  [5] 🎫 Ligament Ticket (Helpdesk & incident system)
+  [6] 🪪 Ligament Guard (Kiosk monitor for checkpoints & turnstiles)
+  ──────────────────────────────────────────────────────────────────────
+  [7] 🧊 Ligament ICE (Media gateway Coturn STUN/TURN on VPS)
+  [8] 📡 Ligament Relay (Branch office edge agent)
+  ──────────────────────────────────────────────────────────────────────
+  [9] 🔄 Update containers (Pull & Restart)
+  [10] 📊 Detailed inspection of paths, volumes, ports & logs
+  [11] 🗑️  Removal (Remove module or entire stack)
+  [0] ❌ Exit
 ```
 
 ### ⚙️ Non-Interactive CLI Automation (CI/CD)
@@ -289,6 +298,19 @@ Recreate only the targeted container without disconnecting databases or peer ser
 
 > [!TIP]
 > Under the hood, the script executes `docker compose up -d --no-deps <service>`, keeping database connections and peer containers running uninterrupted.
+
+### 3. Module Removal & Uninstallation
+Stop and remove an individual service (e.g. if moving to a dedicated node):
+```bash
+./install.sh --remove-module guard      # Removes only Guard container; other services unaffected
+./install.sh --remove-module chat       # Removes Chat & Chat-DB (with prompt to remove data volumes)
+```
+Full uninstallation of all Ligament services:
+```bash
+./install.sh --uninstall-all            # Interactive dialog confirming container, volume & config deletion
+./install.sh --uninstall-all --purge-volumes --purge-files # Complete silent host purge
+```
+In interactive TUI, choose option `[11] 🗑️  Removal` to manage component deletion.
 
 ---
 

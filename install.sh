@@ -19,7 +19,7 @@
 # ==============================================================================
 set -euo pipefail
 
-VERSION="2.2.4"
+VERSION="2.3.0"
 DEFAULT_INSTALL_DIR="/opt/ligament"
 RAW_BASE_URL="https://raw.githubusercontent.com/aligorov/ligament/main"
 target_dir=""
@@ -651,34 +651,36 @@ deploy_central() {
   say "Запуск сервисов..."
   $DC_CMD up -d
 
-  say "Ожидание готовности ядра (/healthz)..."
-  local p_app ok=""
-  p_app="$(grep '^LIG_APP_PORT=' "$env_file" | cut -d= -f2 || echo 8080)"
-  for _ in $(seq 1 45); do
-    if curl -fsS -m 2 "http://127.0.0.1:${p_app}/healthz" >/dev/null 2>&1; then
-      ok=1; break
-    fi
-    sleep 2
-  done
-
-  if [[ -z "$ok" ]]; then
-    warn "Healthcheck не ответил за 90 сек. Проверьте логи: $DC_CMD logs twofa"
-  fi
-
-  # Извлечение учетных данных первого администратора
-  say "Проверка первичного пароля администратора..."
-  local cid admin_pass="см. ./admin_password.txt"
-  cid="$($DC_CMD ps -q twofa 2>/dev/null || true)"
-  if [[ -n "$cid" ]]; then
-    for _ in $(seq 1 10); do
-      if docker cp "$cid:/home/nonroot/admin_password.txt" "./admin_password.txt" 2>/dev/null; then
-        chmod 600 "./admin_password.txt"
-        admin_pass="$(tr -d '\r\n' < ./admin_password.txt)"
-        break
+  if [[ "$selected_modules" == "all" || ",$selected_modules," == *",core,"* ]]; then
+    say "Ожидание готовности ядра Core 2FA (/healthz)..."
+    local p_app ok=""
+    p_app="$(grep '^LIG_APP_PORT=' "$env_file" | cut -d= -f2 || echo 8080)"
+    for _ in $(seq 1 45); do
+      if curl -fsS -m 2 "http://127.0.0.1:${p_app}/healthz" >/dev/null 2>&1; then
+        ok=1; break
       fi
-      sleep 1
+      sleep 2
     done
-    docker cp "$cid:/home/nonroot/admin_recovery_codes.txt" "./admin_recovery_codes.txt" 2>/dev/null && chmod 600 "./admin_recovery_codes.txt" || true
+
+    if [[ -z "$ok" ]]; then
+      warn "Healthcheck Core 2FA не ответил за 90 сек. Проверьте логи: $DC_CMD logs twofa"
+    fi
+
+    # Извлечение учетных данных первого администратора
+    say "Проверка первичного пароля администратора..."
+    local cid admin_pass="см. ./admin_password.txt"
+    cid="$($DC_CMD ps -q twofa 2>/dev/null || true)"
+    if [[ -n "$cid" ]]; then
+      for _ in $(seq 1 10); do
+        if docker cp "$cid:/home/nonroot/admin_password.txt" "./admin_password.txt" 2>/dev/null; then
+          chmod 600 "./admin_password.txt"
+          admin_pass="$(tr -d '\r\n' < ./admin_password.txt)"
+          break
+        fi
+        sleep 1
+      done
+      docker cp "$cid:/home/nonroot/admin_recovery_codes.txt" "./admin_recovery_codes.txt" 2>/dev/null && chmod 600 "./admin_recovery_codes.txt" || true
+    fi
   fi
 
   local server_ip
@@ -958,6 +960,271 @@ add_or_start_module() {
 }
 
 # ------------------------------------------------------------------------------
+# УДАЛЕНИЕ МОДУЛЕЙ И ПОЛНАЯ ДЕИНСТАЛЛЯЦИЯ СТЕКА
+# ------------------------------------------------------------------------------
+
+get_containers_for_module() {
+  local mod="$1"
+  local cids=""
+  case "$mod" in
+    core)
+      cids="$(docker ps -a --filter "ancestor=aligorov/ligament_2fa" --format '{{.ID}}' 2>/dev/null || true)"
+      cids="$cids $(docker ps -a --filter "name=ligament-core" --format '{{.ID}}' 2>/dev/null || true)"
+      cids="$cids $(docker ps -a --filter "name=2fa-twofa" --format '{{.ID}}' 2>/dev/null || true)"
+      cids="$cids $(docker ps -a --filter "name=2fa-db" --format '{{.ID}}' 2>/dev/null || true)"
+      ;;
+    chat)
+      cids="$(docker ps -a --filter "ancestor=aligorov/ligament_chat" --format '{{.ID}}' 2>/dev/null || true)"
+      cids="$cids $(docker ps -a --filter "name=ligament-chat" --format '{{.ID}}' 2>/dev/null || true)"
+      ;;
+    recorder)
+      cids="$(docker ps -a --filter "ancestor=aligorov/ligament_recoder" --format '{{.ID}}' 2>/dev/null || true)"
+      cids="$cids $(docker ps -a --filter "ancestor=aligorov/ligament_recorder" --format '{{.ID}}' 2>/dev/null || true)"
+      cids="$cids $(docker ps -a --filter "name=ligament-recod" --format '{{.ID}}' 2>/dev/null || true)"
+      cids="$cids $(docker ps -a --filter "name=ligament-recorder" --format '{{.ID}}' 2>/dev/null || true)"
+      ;;
+    ticket)
+      cids="$(docker ps -a --filter "ancestor=aligorov/ligament_ticket" --format '{{.ID}}' 2>/dev/null || true)"
+      cids="$cids $(docker ps -a --filter "name=ligament-ticket" --format '{{.ID}}' 2>/dev/null || true)"
+      ;;
+    guard)
+      cids="$(docker ps -a --filter "ancestor=aligorov/ligament_guard" --format '{{.ID}}' 2>/dev/null || true)"
+      cids="$cids $(docker ps -a --filter "name=ligament-guard" --format '{{.ID}}' 2>/dev/null || true)"
+      ;;
+    ice)
+      cids="$(docker ps -a --filter "name=ligament-ice" --format '{{.ID}}' 2>/dev/null || true)"
+      ;;
+    relay)
+      cids="$(docker ps -a --filter "name=ligament-relay" --format '{{.ID}}' 2>/dev/null || true)"
+      ;;
+  esac
+  echo "$cids" | tr ' ' '\n' | grep -v '^$' | sort -u
+}
+
+get_volumes_for_module() {
+  local mod="$1"
+  case "$mod" in
+    core)     echo "twofa_pgdata" ;;
+    chat)     echo "chat_pgdata chat_pgsocket chat_data" ;;
+    recorder) echo "recorder_pgdata recorder_pgsocket recorder_data" ;;
+    ticket)   echo "ticket_pgdata ticket_pgsocket" ;;
+    guard)    echo "" ;;
+    ice)      echo "ice_certs" ;;
+    relay)    echo "relay_data" ;;
+  esac
+}
+
+delete_named_volume() {
+  local vol_base="$1"
+  local matched_vols
+  matched_vols="$(docker volume ls --format '{{.Name}}' 2>/dev/null | grep -E "(^|_)(${vol_base})$" || true)"
+  for v in $matched_vols; do
+    say "Удаление тома данных Docker: $v..."
+    docker volume rm -f "$v" 2>/dev/null || true
+  done
+}
+
+remove_profile_from_env() {
+  local mod="$1"
+  [[ ! -f "$env_file" ]] && return 0
+
+  local cur_profs
+  cur_profs="$(grep '^COMPOSE_PROFILES=' "$env_file" 2>/dev/null | cut -d= -f2 | tr -d '\r\n ' || true)"
+  [[ -z "$cur_profs" ]] && return 0
+
+  if [[ "$cur_profs" == "all" ]]; then
+    local all_mods=("core" "chat" "recorder" "ticket" "guard")
+    local new_list=()
+    for m in "${all_mods[@]}"; do
+      if [[ "$m" != "$mod" ]]; then
+        new_list+=("$m")
+      fi
+    done
+    local res
+    res="$(IFS=,; echo "${new_list[*]}")"
+    upsert_env "COMPOSE_PROFILES" "$res"
+    return 0
+  fi
+
+  local parts
+  IFS=',' read -r -a parts <<< "$cur_profs"
+  local new_parts=()
+  for p in "${parts[@]}"; do
+    if [[ "$p" != "$mod" && -n "$p" ]]; then
+      new_parts+=("$p")
+    fi
+  done
+
+  local new_res
+  new_res="$(IFS=,; echo "${new_parts[*]}")"
+  if [[ -n "$new_res" ]]; then
+    upsert_env "COMPOSE_PROFILES" "$new_res"
+  else
+    sed -i.bak '/^COMPOSE_PROFILES=/d' "$env_file" 2>/dev/null || true
+    rm -f "${env_file}.bak"
+  fi
+}
+
+remove_module() {
+  local mod="$1"
+  local purge_vols="${2:-0}"
+
+  say "Остановка и удаление модуля [$mod]..."
+
+  # 1. Остановка сервисов в Docker Compose
+  case "$mod" in
+    core)     $DC_CMD stop twofa db 2>/dev/null || true; $DC_CMD rm -f twofa db 2>/dev/null || true ;;
+    chat)     $DC_CMD stop chat chat-db 2>/dev/null || true; $DC_CMD rm -f chat chat-db 2>/dev/null || true ;;
+    recorder) $DC_CMD stop recorder recorder-db 2>/dev/null || true; $DC_CMD rm -f recorder recorder-db 2>/dev/null || true ;;
+    ticket)   $DC_CMD stop ticket ticket-db 2>/dev/null || true; $DC_CMD rm -f ticket ticket-db 2>/dev/null || true ;;
+    guard)    $DC_CMD stop guard 2>/dev/null || true; $DC_CMD rm -f guard 2>/dev/null || true ;;
+    ice)      $DC_CMD -f docker-compose.ice.yml down 2>/dev/null || true ;;
+    relay)    $DC_CMD -f docker-compose.relay.yml down 2>/dev/null || true ;;
+  esac
+
+  # 2. Принудительное удаление контейнеров напрямую
+  local cids; cids="$(get_containers_for_module "$mod")"
+  if [[ -n "$cids" ]]; then
+    for cid in $cids; do
+      local cname; cname="$(docker inspect "$cid" --format '{{.Name}}' 2>/dev/null | tr -d '/' || echo "$cid")"
+      say "Удаление контейнера Docker: $cname ($cid)..."
+      docker rm -f "$cid" 2>/dev/null || true
+    done
+  fi
+
+  # 3. Обновление COMPOSE_PROFILES в .env
+  remove_profile_from_env "$mod"
+
+  # 4. Удаление томов данных
+  local vols; vols="$(get_volumes_for_module "$mod")"
+  if [[ -n "$vols" ]]; then
+    local do_purge="$purge_vols"
+    if [[ "$do_purge" != "1" && (-c /dev/tty || -t 0) ]]; then
+      echo
+      warn "Модуль [$mod] использует тома данных: $vols"
+      local ans=""
+      prompt_read "${C_YELLOW}Удалить постоянные тома данных (БД/файлы) модуля [$mod]? (y/N): ${C_RESET}" ans "N"
+      if [[ "$ans" =~ ^[yYдД]$ ]]; then
+        do_purge=1
+      fi
+    fi
+
+    if [[ "$do_purge" == "1" ]]; then
+      for v in $vols; do
+        delete_named_volume "$v"
+      done
+      info "Тома данных модуля [$mod] удалены."
+    else
+      info "Тома данных модуля [$mod] сохранены на диске."
+    fi
+  fi
+
+  info "Модуль [$mod] успешно удален!"
+}
+
+uninstall_full_stack() {
+  local purge_vols="${1:-0}"
+  local purge_files="${2:-0}"
+
+  printf "\n${C_RED}╔═══════════════════════════════════════════════════════════════════════╗${C_RESET}\n"
+  printf "${C_RED}║${C_RESET}  ${C_BOLD}⚠️  ПОЛНОЕ УДАЛЕНИЕ LIGAMENT ENTERPRISE PLATFORM С ХОСТА${C_RESET}              ${C_RED}║${C_RESET}\n"
+  printf "${C_RED}╚═══════════════════════════════════════════════════════════════════════╝${C_RESET}\n\n"
+
+  if [[ -c /dev/tty || -t 0 ]]; then
+    local confirm=""
+    prompt_read "${C_RED}${C_BOLD}Вы действительно хотите остановить и удалить ВСЕ сервисы Ligament? (y/N): ${C_RESET}" confirm "N"
+    if ! [[ "$confirm" =~ ^[yYдД]$ ]]; then
+      info "Удаление отменено пользователем."
+      return 0
+    fi
+  fi
+
+  say "Остановка и удаление всех сервисов Docker Compose..."
+  $DC_CMD down --remove-orphans 2>/dev/null || true
+  if [[ -f "docker-compose.ice.yml" ]]; then
+    $DC_CMD -f docker-compose.ice.yml down --remove-orphans 2>/dev/null || true
+  fi
+  if [[ -f "docker-compose.relay.yml" ]]; then
+    $DC_CMD -f docker-compose.relay.yml down --remove-orphans 2>/dev/null || true
+  fi
+
+  say "Поиск и принудительное удаление всех оставшихся контейнеров Ligament..."
+  local all_cids
+  all_cids="$(docker ps -a --format '{{.ID}} {{.Image}} {{.Names}}' 2>/dev/null | grep -E 'aligorov/ligament|coturn/coturn|ligament-|2fa-twofa|2fa-db' | awk '{print $1}' || true)"
+  if [[ -n "$all_cids" ]]; then
+    for cid in $all_cids; do
+      local cname; cname="$(docker inspect "$cid" --format '{{.Name}}' 2>/dev/null | tr -d '/' || echo "$cid")"
+      say "Удаление контейнера Docker: $cname ($cid)..."
+      docker rm -f "$cid" 2>/dev/null || true
+    done
+  fi
+
+  say "Удаление сети ligament-net..."
+  docker network rm ligament-net 2>/dev/null || true
+
+  # Удаление томов
+  local do_purge_vols="$purge_vols"
+  if [[ "$do_purge_vols" != "1" && (-c /dev/tty || -t 0) ]]; then
+    echo
+    warn "ВНИМАНИЕ: Удаление томов уничтожит все базы данных PostgreSQL, медиазаписи и сертификаты!"
+    local ans_v=""
+    prompt_read "${C_RED}${C_BOLD}Удалить ВСЕ тома данных Docker для Ligament? (y/N): ${C_RESET}" ans_v "N"
+    if [[ "$ans_v" =~ ^[yYдД]$ ]]; then
+      do_purge_vols=1
+    fi
+  fi
+
+  if [[ "$do_purge_vols" == "1" ]]; then
+    say "Удаление томов данных Docker..."
+    for v in twofa_pgdata chat_pgdata chat_pgsocket chat_data recorder_pgdata recorder_pgsocket recorder_data ticket_pgdata ticket_pgsocket ice_certs ligament_ice_certs relay_data; do
+      delete_named_volume "$v"
+    done
+    info "Все тома данных удалены."
+  else
+    info "Тома данных сохранены на диске."
+  fi
+
+  # Файлы конфигурации
+  local do_purge_files="$purge_files"
+  if [[ "$do_purge_files" != "1" && (-c /dev/tty || -t 0) ]]; then
+    echo
+    local ans_f=""
+    prompt_read "${C_YELLOW}Удалить файлы конфигурации (.env, docker-compose.yml и др.)? (y/N): ${C_RESET}" ans_f "N"
+    if [[ "$ans_f" =~ ^[yYдД]$ ]]; then
+      do_purge_files=1
+    fi
+  fi
+
+  if [[ "$do_purge_files" == "1" ]]; then
+    say "Удаление файлов конфигурации..."
+    rm -f .env .env.bak .env.ice docker-compose.yml docker-compose.ice.yml docker-compose.relay.yml
+    rm -rf config/turnserver.conf config/relay.yaml
+    info "Конфигурационные файлы удалены."
+  fi
+
+  # Удаление Docker-образов (опционально)
+  if [[ -c /dev/tty || -t 0 ]]; then
+    echo
+    local ans_i=""
+    prompt_read "${C_YELLOW}Удалить также скачанные Docker-образы Ligament? (y/N): ${C_RESET}" ans_i "N"
+    if [[ "$ans_i" =~ ^[yYдД]$ ]]; then
+      say "Удаление Docker-образов Ligament..."
+      local lig_images
+      lig_images="$(docker images --format '{{.Repository}}:{{.Tag}} {{.ID}}' 2>/dev/null | grep -E 'aligorov/ligament|coturn/coturn' | awk '{print $2}' || true)"
+      if [[ -n "$lig_images" ]]; then
+        for img in $lig_images; do
+          docker rmi -f "$img" 2>/dev/null || true
+        done
+        info "Docker-образы удалены."
+      fi
+    fi
+  fi
+
+  echo
+  info "Полное удаление Ligament на хосте успешно завершено!"
+}
+
+# ------------------------------------------------------------------------------
 # ИНТЕРАКТИВНОЕ TUI-МЕНЮ
 # ------------------------------------------------------------------------------
 run_interactive_tui() {
@@ -983,10 +1250,11 @@ run_interactive_tui() {
   divider
   printf "  ${C_WHITE}[9] 🔄 Обновление контейнеров (Pull & Restart)${C_RESET}\n"
   printf "  ${C_WHITE}[10] 📊 Детальная инспекция путей, томов, портов и логи${C_RESET}\n"
+  printf "  ${C_RED}[11] 🗑️  Удаление (Удалить модуль или весь стек)${C_RESET}\n"
   printf "  ${C_RED}[0] ❌ Выход${C_RESET}\n\n"
 
   local choice=""
-  prompt_read "${C_BOLD}Введите номер действия [0-10]: ${C_RESET}" choice
+  prompt_read "${C_BOLD}Введите номер действия [0-11]: ${C_RESET}" choice
 
   case "$choice" in
     1) selected_modules="all"; ensure_env_file; deploy_central ;;
@@ -1036,6 +1304,33 @@ run_interactive_tui() {
       say "Последние строки логов:"
       $DC_CMD logs --tail=25 2>/dev/null || true
       ;;
+    11)
+      echo
+      printf "  ${C_BOLD}Управление удалением компонентов Ligament:${C_RESET}\n\n"
+      printf "  ${C_CYAN}[1] 🛡️  Удалить Core 2FA (центральное ядро + БД)${C_RESET}\n"
+      printf "  ${C_BLUE}[2] 💬 Удалить Ligament Chat (мессенджер + БД)${C_RESET}\n"
+      printf "  ${C_MAGENTA}[3] 📹 Удалить Ligament Recorder (запись сессий/AI + БД)${C_RESET}\n"
+      printf "  ${C_YELLOW}[4] 🎫 Удалить Ligament Ticket (helpdesk + БД)${C_RESET}\n"
+      printf "  ${C_WHITE}[5] 🪪 Удалить Ligament Guard (kiosk КПП)${C_RESET}\n"
+      printf "  ${C_YELLOW}[6] 🧊 Удалить Ligament ICE (STUN/TURN шлюз)${C_RESET}\n"
+      printf "  ${C_YELLOW}[7] 📡 Удалить Ligament Relay (edge-агент)${C_RESET}\n"
+      divider
+      printf "  ${C_RED}[8] 💥 ПОЛНОЕ УДАЛЕНИЕ ВСЕГО СТЕКА LIGAMENT С ХОСТА${C_RESET}\n"
+      printf "  [0] Отмена\n\n"
+      local rm_choice=""
+      prompt_read "${C_BOLD}Выберите действие [0-8]: ${C_RESET}" rm_choice "0"
+      case "$rm_choice" in
+        1) remove_module "core" ;;
+        2) remove_module "chat" ;;
+        3) remove_module "recorder" ;;
+        4) remove_module "ticket" ;;
+        5) remove_module "guard" ;;
+        6) remove_module "ice" ;;
+        7) remove_module "relay" ;;
+        8) uninstall_full_stack ;;
+        0|*) info "Отмена удаления." ;;
+      esac
+      ;;
     0|q|exit) exit 0 ;;
     *) warn "Неверный выбор: '$choice'. Выход."; exit 1 ;;
   esac
@@ -1053,6 +1348,10 @@ while [[ $# -gt 0 ]]; do
     --dir)                  target_dir="${2:?}"; shift 2 ;;
     --update)               cli_action="update"; update_target="all"; shift ;;
     --update-module)        cli_action="update"; update_target="${2:?}"; shift 2 ;;
+    --remove-module)        cli_action="remove_module"; remove_target="${2:?}"; shift 2 ;;
+    --uninstall-all)        cli_action="uninstall_all"; shift ;;
+    --purge-volumes)        purge_volumes=1; shift ;;
+    --purge-files)          purge_files=1; shift ;;
     --deploy-remote-ice)    cli_action="remote_ice"; remote_host="${2:?}"; shift 2 ;;
     --deploy-remote-relay)  cli_action="remote_relay"; remote_host="${2:?}"; shift 2 ;;
     --remote-user)          remote_user="${2:?}"; shift 2 ;;
@@ -1074,6 +1373,10 @@ while [[ $# -gt 0 ]]; do
       echo "  --modules <список>           Выборочные модули (core,chat,recorder,ticket,guard)"
       echo "  --update                     Обновление всех активных модулей"
       echo "  --update-module <имя>        Точечное обновление модуля (twofa, chat, recorder, ticket, guard)"
+      echo "  --remove-module <имя>        Удаление модуля (core, chat, recorder, ticket, guard, ice, relay)"
+      echo "  --uninstall-all              Полное удаление всех модулей и контейнеров Ligament с хоста"
+      echo "  --purge-volumes              Удаление томов данных при удалении (без подтверждения)"
+      echo "  --purge-files                Удаление файлов конфигурации при удалении (без подтверждения)"
       echo "  --role ice|relay|central     Выбор целевой роли сервера"
       echo "  --deploy-remote-ice <host>   Удалённый деплой WebRTC ICE по SSH"
       echo "  --deploy-remote-relay <host> Удалённый деплой Relay по SSH"
@@ -1093,6 +1396,8 @@ if [[ -n "$cli_action" ]]; then
   case "$cli_action" in
     deploy_central) ensure_env_file; deploy_central ;;
     update)         update_services "$update_target" ;;
+    remove_module)  remove_module "$remove_target" "${purge_volumes:-0}" ;;
+    uninstall_all)  uninstall_full_stack "${purge_volumes:-0}" "${purge_files:-0}" ;;
     remote_ice)     deploy_remote_ssh "ice" "$remote_host" ;;
     remote_relay)   deploy_remote_ssh "relay" "$remote_host" ;;
   esac
