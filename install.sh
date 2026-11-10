@@ -19,7 +19,7 @@
 # ==============================================================================
 set -euo pipefail
 
-VERSION="2.2.2"
+VERSION="2.2.3"
 DEFAULT_INSTALL_DIR="/opt/ligament"
 RAW_BASE_URL="https://raw.githubusercontent.com/aligorov/ligament/main"
 target_dir=""
@@ -124,7 +124,13 @@ ensure_required_files() {
   }
 
   mkdir -p config
-  ensure_file "docker-compose.yml"
+  if [[ ! -f "docker-compose.yml" ]]; then
+    ensure_file "docker-compose.yml"
+  elif ! grep -q "^  guard:" "docker-compose.yml" 2>/dev/null || ! grep -q "^  recorder:" "docker-compose.yml" 2>/dev/null; then
+    say "Обнаружен устаревший docker-compose.yml (отсутствуют сервисы guard/recorder). Обновление манифеста..."
+    cp "docker-compose.yml" "docker-compose.yml.bak" 2>/dev/null || true
+    curl -fsSL "$RAW_BASE_URL/docker-compose.yml" -o "docker-compose.yml" || warn "Не удалось обновить docker-compose.yml с GitHub."
+  fi
   ensure_file "docker-compose.ice.yml"
   ensure_file "docker-compose.relay.yml"
   ensure_file "config/turnserver.conf"
@@ -892,6 +898,16 @@ add_or_start_module() {
     guard)    svcs=("guard") ;;
     core)     svcs=("db" "twofa") ;;
   esac
+
+  # Проверяем наличие всех сервисов в локальном docker-compose.yml
+  for svc in "${svcs[@]}"; do
+    if ! grep -q "^  ${svc}:" "docker-compose.yml" 2>/dev/null; then
+      say "Сервис [$svc] отсутствует в локальном docker-compose.yml. Загрузка актуального мультимодульного манифеста с GitHub..."
+      cp "docker-compose.yml" "docker-compose.yml.bak" 2>/dev/null || true
+      curl -fsSL "$RAW_BASE_URL/docker-compose.yml" -o "docker-compose.yml" || true
+      break
+    fi
+  done
 
   say "Загрузка Docker-образов для: ${svcs[*]}..."
   $DC_CMD pull "${svcs[@]}" || warn "Некоторые образы не удалось обновить, использую локальные кэшированные..."
