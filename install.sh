@@ -19,7 +19,7 @@
 # ==============================================================================
 set -euo pipefail
 
-VERSION="2.3.0"
+VERSION="2.3.1"
 DEFAULT_INSTALL_DIR="/opt/ligament"
 RAW_BASE_URL="https://raw.githubusercontent.com/aligorov/ligament/main"
 target_dir=""
@@ -126,8 +126,8 @@ ensure_required_files() {
   mkdir -p config
   if [[ ! -f "docker-compose.yml" ]]; then
     ensure_file "docker-compose.yml"
-  elif ! grep -q "^  guard:" "docker-compose.yml" 2>/dev/null || ! grep -q "^  recorder:" "docker-compose.yml" 2>/dev/null; then
-    say "Обнаружен устаревший docker-compose.yml (отсутствуют сервисы guard/recorder). Обновление манифеста..."
+  elif ! grep -q "^  guard:" "docker-compose.yml" 2>/dev/null || ! grep -q "^  recorder:" "docker-compose.yml" 2>/dev/null || grep -A 8 "^  guard:" "docker-compose.yml" 2>/dev/null | grep -q "twofa:"; then
+    say "Обнаружен устаревший docker-compose.yml. Обновление манифеста с GitHub..."
     cp "docker-compose.yml" "docker-compose.yml.bak" 2>/dev/null || true
     curl -fsSL "$RAW_BASE_URL/docker-compose.yml" -o "docker-compose.yml" || warn "Не удалось обновить docker-compose.yml с GitHub."
   fi
@@ -928,10 +928,10 @@ add_or_start_module() {
     core)     svcs=("db" "twofa") ;;
   esac
 
-  # Проверяем наличие всех сервисов в локальном docker-compose.yml
+  # Проверяем наличие всех сервисов и отсутствие устаревших зависимостей в локальном docker-compose.yml
   for svc in "${svcs[@]}"; do
-    if ! grep -q "^  ${svc}:" "docker-compose.yml" 2>/dev/null; then
-      say "Сервис [$svc] отсутствует в локальном docker-compose.yml. Загрузка актуального мультимодульного манифеста с GitHub..."
+    if ! grep -q "^  ${svc}:" "docker-compose.yml" 2>/dev/null || grep -A 8 "^  ${svc}:" "docker-compose.yml" 2>/dev/null | grep -q "twofa:"; then
+      say "Сервис [$svc] отсутствует или имеет устаревшую конфигурацию. Загрузка актуального манифеста с GitHub..."
       cp "docker-compose.yml" "docker-compose.yml.bak" 2>/dev/null || true
       curl -fsSL "$RAW_BASE_URL/docker-compose.yml" -o "docker-compose.yml" || true
       break
