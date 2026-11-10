@@ -19,7 +19,7 @@
 # ==============================================================================
 set -euo pipefail
 
-VERSION="2.2.1"
+VERSION="2.2.2"
 DEFAULT_INSTALL_DIR="/opt/ligament"
 RAW_BASE_URL="https://raw.githubusercontent.com/aligorov/ligament/main"
 target_dir=""
@@ -82,14 +82,21 @@ prompt_read() {
   eval "$var_name=\"\$val\""
 }
 
+# Очистка .env от мусорных escape-последовательностей или сбойных строк
+sanitize_env_file() {
+  if [[ -f "$env_file" ]]; then
+    sed -i.bak '/\x1b/d; /\[Предупреждение\]/d; /\[Ошибка\]/d; /\[X\]/d; /\[i\]/d' "$env_file" 2>/dev/null && rm -f "$env_file.bak" || true
+  fi
+}
+
 # Определение рабочей директории
 init_workdir() {
   if [[ -n "$target_dir" ]]; then
     mkdir -p "$target_dir"
     cd "$target_dir"
-  elif [[ -f "docker-compose.yml" && -f "install.sh" ]]; then
-    # Уже находимся в каталоге репозитория
-    target_dir="$(pwd)"
+  elif [[ -f "docker-compose.yml" || -f ".env" ]]; then
+    # Если запуск внутри существующего каталога развертывания (например /opt/docker/2fa)
+    target_dir="$(pwd -P)"
   elif [[ "$(id -u)" -eq 0 ]]; then
     target_dir="$DEFAULT_INSTALL_DIR"
     mkdir -p "$target_dir"
@@ -99,6 +106,7 @@ init_workdir() {
     mkdir -p "$target_dir"
     cd "$target_dir"
   fi
+  sanitize_env_file
 }
 
 # Гарантия наличия манифестов (автозагрузка с GitHub при curl | bash)
@@ -316,22 +324,78 @@ resolve_free_port() {
 }
 
 # ------------------------------------------------------------------------------
-# ИНСПЕКЦИЯ ПУТЕЙ И ПРОВЕРКА УЖЕ УСТАНОВЛЕННЫХ КОМПОНЕНТОВ
+# ИНСПЕКЦИЯ КОМПОНЕНТОВ ПО DOCKER-КОНТЕЙНЕРАМ И ПУТЯМ
 # ------------------------------------------------------------------------------
-get_container_info() {
-  local name="$1"
-  local status=""
-  status="$(docker ps --filter "name=^/${name}$" --format '{{.Status}}' 2>/dev/null || true)"
-  if [[ -n "$status" ]]; then
-    echo "UP|$status"
+find_container_by_module() {
+  local mod="$1"
+  local cid=""
+  case "$mod" in
+    core)
+      cid="$(docker ps -a --filter "ancestor=aligorov/ligament_2fa" --format '{{.ID}}' 2>/dev/null | head -1 || true)"
+      [[ -z "$cid" ]] && cid="$(docker ps -a --filter "name=ligament-core" --format '{{.ID}}' 2>/dev/null | head -1 || true)"
+      [[ -z "$cid" ]] && cid="$(docker ps -a --filter "name=twofa" --format '{{.ID}}' 2>/dev/null | grep -v '\-db' | head -1 || true)"
+      ;;
+    core-db)
+      cid="$(docker ps -a --filter "name=ligament-core-db" --format '{{.ID}}' 2>/dev/null | head -1 || true)"
+      [[ -z "$cid" ]] && cid="$(docker ps -a --filter "name=2fa-db" --format '{{.ID}}' 2>/dev/null | head -1 || true)"
+      ;;
+    chat)
+      cid="$(docker ps -a --filter "ancestor=aligorov/ligament_chat" --format '{{.ID}}' 2>/dev/null | head -1 || true)"
+      [[ -z "$cid" ]] && cid="$(docker ps -a --filter "name=ligament-chat" --format '{{.ID}}' 2>/dev/null | grep -v '\-db' | head -1 || true)"
+      ;;
+    chat-db)
+      cid="$(docker ps -a --filter "name=ligament-chat-db" --format '{{.ID}}' 2>/dev/null | head -1 || true)"
+      ;;
+    recorder)
+      cid="$(docker ps -a --filter "ancestor=aligorov/ligament_recoder" --format '{{.ID}}' 2>/dev/null | head -1 || true)"
+      [[ -z "$cid" ]] && cid="$(docker ps -a --filter "ancestor=aligorov/ligament_recorder" --format '{{.ID}}' 2>/dev/null | head -1 || true)"
+      [[ -z "$cid" ]] && cid="$(docker ps -a --filter "name=ligament-recod" --format '{{.ID}}' 2>/dev/null | grep -v '\-db' | head -1 || true)"
+      [[ -z "$cid" ]] && cid="$(docker ps -a --filter "name=ligament-recorder" --format '{{.ID}}' 2>/dev/null | grep -v '\-db' | head -1 || true)"
+      ;;
+    recorder-db)
+      cid="$(docker ps -a --filter "name=ligament-recorder-db" --format '{{.ID}}' 2>/dev/null | head -1 || true)"
+      ;;
+    ticket)
+      cid="$(docker ps -a --filter "ancestor=aligorov/ligament_ticket" --format '{{.ID}}' 2>/dev/null | head -1 || true)"
+      [[ -z "$cid" ]] && cid="$(docker ps -a --filter "name=ligament-ticket" --format '{{.ID}}' 2>/dev/null | grep -v '\-db' | head -1 || true)"
+      ;;
+    ticket-db)
+      cid="$(docker ps -a --filter "name=ligament-ticket-db" --format '{{.ID}}' 2>/dev/null | head -1 || true)"
+      ;;
+    guard)
+      cid="$(docker ps -a --filter "ancestor=aligorov/ligament_guard" --format '{{.ID}}' 2>/dev/null | head -1 || true)"
+      [[ -z "$cid" ]] && cid="$(docker ps -a --filter "name=ligament-guard" --format '{{.ID}}' 2>/dev/null | head -1 || true)"
+      ;;
+    ice)
+      cid="$(docker ps -a --filter "name=ligament-ice" --format '{{.ID}}' 2>/dev/null | grep -v '\-certbot' | head -1 || true)"
+      ;;
+    ice-certbot)
+      cid="$(docker ps -a --filter "name=ligament-ice-certbot" --format '{{.ID}}' 2>/dev/null | head -1 || true)"
+      ;;
+    relay)
+      cid="$(docker ps -a --filter "name=ligament-relay" --format '{{.ID}}' 2>/dev/null | head -1 || true)"
+      ;;
+  esac
+  echo "$cid"
+}
+
+get_container_details() {
+  local cid="$1"
+  if [[ -z "$cid" ]]; then
+    echo "NONE|||"
     return 0
   fi
-  status="$(docker ps -a --filter "name=^/${name}$" --format '{{.Status}}' 2>/dev/null || true)"
-  if [[ -n "$status" ]]; then
-    echo "EXITED|$status"
-    return 0
+  local c_name c_state c_ports
+  c_name="$(docker inspect "$cid" --format '{{.Name}}' 2>/dev/null | tr -d '/' || true)"
+  c_state="$(docker inspect "$cid" --format '{{.State.Status}}' 2>/dev/null || true)"
+  c_ports="$(docker inspect "$cid" --format '{{range $p, $conf := .NetworkSettings.Ports}}{{range $conf}}:{{.HostPort}} {{end}}{{end}}' 2>/dev/null | tr ' ' '\n' | grep . | sort -un | paste -sd, - || true)"
+  if [[ "$c_state" == "running" ]]; then
+    echo "UP|$c_name|$c_ports"
+  elif [[ -n "$c_state" ]]; then
+    echo "EXITED|$c_name|$c_ports"
+  else
+    echo "NONE|||"
   fi
-  echo "NONE|"
 }
 
 get_volume_mountpoint() {
@@ -349,7 +413,7 @@ get_volume_mountpoint() {
 
 detect_existing_installation() {
   local cur_path; cur_path="$(pwd -P)"
-  say "Инспекция окружения, путей и статуса компонентов Ligament..."
+  say "Инспекция Docker-контейнеров, путей и статуса компонентов Ligament..."
 
   local d_root="/var/lib/docker"
   if command -v docker >/dev/null 2>&1; then
@@ -375,21 +439,30 @@ detect_existing_installation() {
   fi
 
   echo
-  printf "  ${C_BOLD}%-22s %-20s %-16s %s${C_RESET}\n" "МОДУЛЬ" "СТАТУС СЕРВИСА" "ПОРТЫ" "ТОМ ДАННЫХ НА ХОСТЕ"
-  printf "  ${C_DIM}────────────────────── ──────────────────── ──────────────── ───────────────────────────────────${C_RESET}\n"
+  printf "  ${C_BOLD}%-22s %-26s %-16s %s${C_RESET}\n" "МОДУЛЬ" "СТАТУС В DOCKER" "ПОРТЫ" "ТОМ ДАННЫХ НА ХОСТЕ"
+  printf "  ${C_DIM}────────────────────── ────────────────────────── ──────────────── ───────────────────────────────────${C_RESET}\n"
 
   render_mod_row() {
-    local title="$1" cont_app="$2" cont_db="$3" ports="$4" vol_name="$5"
-    local s_app; s_app="$(get_container_info "$cont_app")"
+    local title="$1" mod_key="$2" def_port="$3" vol_name="$4"
+    local cid; cid="$(find_container_by_module "$mod_key")"
+    local c_info; c_info="$(get_container_details "$cid")"
+    local app_state="${c_info%%|*}"
+    local rest="${c_info#*|}"
+    local app_name="${rest%%|*}"
+    local app_ports="${rest#*|}"
+
     local status_display=""
-    local app_state="${s_app%%|*}"
+    local ports_display=""
 
     if [[ "$app_state" == "UP" ]]; then
-      status_display="${C_GREEN}✔ РАБОТАЕТ${C_RESET}"
+      status_display="${C_GREEN}✔ РАБОТАЕТ (${app_name})${C_RESET}"
+      ports_display="${C_CYAN}${app_ports:-:$def_port}${C_RESET}"
     elif [[ "$app_state" == "EXITED" ]]; then
-      status_display="${C_RED}■ ОСТАНОВЛЕН${C_RESET}"
+      status_display="${C_RED}■ ОСТАНОВЛЕН (${app_name})${C_RESET}"
+      ports_display="${C_YELLOW}${app_ports:-:$def_port}${C_RESET}"
     else
       status_display="${C_DIM}· Не установлен${C_RESET}"
+      ports_display="${C_DIM}(реком: :$def_port)${C_RESET}"
     fi
 
     local vol_path=""
@@ -404,33 +477,100 @@ detect_existing_installation() {
       vol_path="${C_DIM}—${C_RESET}"
     fi
 
-    printf "  %-22s %-29b %-16s %b\n" "$title" "$status_display" "$ports" "$vol_path"
+    printf "  %-22s %-38b %-24b %b\n" "$title" "$status_display" "$ports_display" "$vol_path"
   }
 
-  local p_core; p_core="$(grep '^LIG_APP_PORT=' "$env_file" 2>/dev/null | cut -d= -f2 || echo 8080)"
-  local p_chat; p_chat="$(grep '^LIG_CHAT_PORT=' "$env_file" 2>/dev/null | cut -d= -f2 || echo 8097)"
-  local p_rec;  p_rec="$(grep '^LIG_RECORDER_PORT=' "$env_file" 2>/dev/null | cut -d= -f2 || echo 8095)"
-  local p_tick; p_tick="$(grep '^LIG_TICKET_PORT=' "$env_file" 2>/dev/null | cut -d= -f2 || echo 8096)"
-  local p_grd;  p_grd="$(grep '^LIG_GUARD_PORT=' "$env_file" 2>/dev/null | cut -d= -f2 || echo 8090)"
-
-  render_mod_row "🛡️ Core 2FA (Auth)"     "ligament-core"    "ligament-core-db"     ":$p_core, :1812" "twofa_pgdata"
-  render_mod_row "💬 Ligament Chat"       "ligament-chat"    "ligament-chat-db"     ":$p_chat"        "chat_pgdata"
-  render_mod_row "📹 Recorder & AI"       "ligament-recoder" "ligament-recorder-db" ":$p_rec"         "recorder_pgdata"
-  render_mod_row "🎫 Helpdesk Ticket"     "ligament-ticket"  "ligament-ticket-db"   ":$p_tick"        "ticket_pgdata"
-  render_mod_row "🪪 Guard Monitor"       "ligament-guard"   ""                     ":$p_grd"         ""
-  render_mod_row "🧊 WebRTC ICE (VPS)"    "ligament-ice"     "ligament-ice-certbot" ":5349, :3478"    "ligament_ice_certs"
-  render_mod_row "📡 Branch Relay"        "ligament-relay"   ""                     ":8082, :1812"    ""
+  render_mod_row "🛡️ Core 2FA (Auth)"     "core"     "8080" "twofa_pgdata"
+  render_mod_row "💬 Ligament Chat"       "chat"     "8097" "chat_pgdata"
+  render_mod_row "📹 Recorder & AI"       "recorder" "8095" "recorder_pgdata"
+  render_mod_row "🎫 Helpdesk Ticket"     "ticket"   "8096" "ticket_pgdata"
+  render_mod_row "🪪 Guard Monitor"       "guard"    "8090" ""
+  render_mod_row "🧊 WebRTC ICE (VPS)"    "ice"      "5349" "ligament_ice_certs"
+  render_mod_row "📡 Branch Relay"        "relay"    "8082" ""
 
   printf "  ${C_DIM}─────────────────────────────────────────────────────────────────────────────────────────────${C_RESET}\n"
 }
 
 # ------------------------------------------------------------------------------
-# ФОРМИРОВАНИЕ .env И СЕКРЕТОВ
+# ФОРМИРОВАНИЕ .env И СЕКРЕТОВ С ДЕТЕКЦИЕЙ DOCKER И ПОДБОРОМ ПОРТОВ
 # ------------------------------------------------------------------------------
+
+# Назначает порт для сервиса:
+# 1. Если уже сохранён валидный числовой порт в .env — сохраняет его.
+# 2. Если контейнер этого сервиса уже запущен в Docker — берёт его фактический порт.
+# 3. Если рекомендуемый порт занят — находит свободный и ПРЕДЛАГАЕТ пользователю подтвердить или ввести свой.
+assign_port() {
+  local env_key="$1" default_port="$2" label="$3" mod_name="${4:-}"
+  local current=""
+  current="$(grep "^${env_key}=" "$env_file" 2>/dev/null | cut -d= -f2 | tr -d '\r\n ' || true)"
+
+  # Если в .env уже валидный числовой порт — сохраняем
+  if [[ "$current" =~ ^[0-9]+$ ]]; then
+    echo "$current"
+    return 0
+  fi
+
+  # Если контейнер этого модуля уже есть в Docker — берем его фактический порт
+  if [[ -n "$mod_name" ]]; then
+    local running_cid=""
+    running_cid="$(find_container_by_module "$mod_name")"
+    if [[ -n "$running_cid" ]]; then
+      local docker_p=""
+      docker_p="$(docker inspect "$running_cid" --format '{{range $p, $conf := .NetworkSettings.Ports}}{{range $conf}}{{.HostPort}} {{end}}{{end}}' 2>/dev/null | tr ' ' '\n' | grep . | sort -un | head -1 || true)"
+      if [[ "$docker_p" =~ ^[0-9]+$ ]]; then
+        echo "$docker_p"
+        return 0
+      fi
+    fi
+  fi
+
+  local p="$default_port"
+
+  # Проверяем занятость порта
+  if port_busy_tcp "$p" || docker_port_busy "$p"; then
+    local owner; owner="$(inspect_port_owner "$p")"
+    
+    # Ищем следующий свободный порт-кандидат
+    local cand=$((p + 1))
+    while port_busy_tcp "$cand" || docker_port_busy "$cand"; do
+      cand=$((cand + 1))
+    done
+
+    warn "Рекомендуемый порт tcp/$p ($label) занят ($owner)."
+
+    # Если терминал интерактивный — предлагаем пользователю выбрать порт
+    if [[ -c /dev/tty || -t 0 ]]; then
+      local user_choice=""
+      prompt_read "${C_BOLD}Предлагается свободный порт [$cand]. Введите порт для $label [$cand]: ${C_RESET}" user_choice "$cand"
+      while ! [[ "$user_choice" =~ ^[0-9]+$ ]] || port_busy_tcp "$user_choice" || docker_port_busy "$user_choice"; do
+        if ! [[ "$user_choice" =~ ^[0-9]+$ ]]; then
+          warn "Порт должен быть числом от 1 до 65535."
+        else
+          local busy_owner; busy_owner="$(inspect_port_owner "$user_choice")"
+          warn "Порт $user_choice также занят ($busy_owner)."
+        fi
+        cand=$((cand + 1))
+        while port_busy_tcp "$cand" || docker_port_busy "$cand"; do
+          cand=$((cand + 1))
+        done
+        prompt_read "${C_BOLD}Введите свободный порт для $label [$cand]: ${C_RESET}" user_choice "$cand"
+      done
+      p="$user_choice"
+      info "Для $label выбран порт: $p"
+    else
+      info "Для $label автоматически назначен свободный порт: $cand"
+      p="$cand"
+    fi
+  fi
+
+  echo "$p"
+}
+
 ensure_env_file() {
   say "Формирование конфигурации и ключей безопасности (.env)..."
   touch "$env_file"
   chmod 600 "$env_file"
+  sanitize_env_file
 
   upsert_env() {
     local k="$1" v="$2"
@@ -451,24 +591,24 @@ ensure_env_file() {
   if ! grep -q '^LIG_TURN_PASSWORD=' "$env_file" 2>/dev/null; then
     upsert_env "LIG_TURN_PASSWORD" "$(gen_pass 32)"
   fi
-  upsert_env "LIG_TURN_USER" "ligament"
+  if ! grep -q '^LIG_TURN_USER=' "$env_file" 2>/dev/null; then
+    upsert_env "LIG_TURN_USER" "ligament"
+  fi
 
-  # Порты
-  P_APP="$(resolve_free_port 8080 'Core WebUI')"
-  P_HTTP="$(resolve_free_port 80 'Core HTTP')"
-  P_CHAT="$(resolve_free_port 8097 'Chat')"
-  P_REC="$(resolve_free_port 8095 'Recorder')"
-  P_TICK="$(resolve_free_port 8096 'Ticket')"
-  P_GUARD="$(resolve_free_port 8090 'Guard')"
+  # Порты: смотрим на работающие докеры, при конфликте рекомендуемого порта предлагаем альтернативу
+  upsert_env "LIG_APP_PORT"      "$(assign_port LIG_APP_PORT      8080 'Core WebUI'  'core')"
+  upsert_env "LIG_HTTP_PORT"     "$(assign_port LIG_HTTP_PORT     80   'Core HTTP'   'core')"
+  upsert_env "LIG_CHAT_PORT"     "$(assign_port LIG_CHAT_PORT     8097 'Chat'        'chat')"
+  upsert_env "LIG_RECORDER_PORT" "$(assign_port LIG_RECORDER_PORT 8095 'Recorder'    'recorder')"
+  upsert_env "LIG_TICKET_PORT"   "$(assign_port LIG_TICKET_PORT   8096 'Ticket'      'ticket')"
+  upsert_env "LIG_GUARD_PORT"    "$(assign_port LIG_GUARD_PORT    8090 'Guard'       'guard')"
 
-  upsert_env "LIG_APP_PORT" "$P_APP"
-  upsert_env "LIG_HTTP_PORT" "$P_HTTP"
-  upsert_env "LIG_CHAT_PORT" "$P_CHAT"
-  upsert_env "LIG_RECORDER_PORT" "$P_REC"
-  upsert_env "LIG_TICKET_PORT" "$P_TICK"
-  upsert_env "LIG_GUARD_PORT" "$P_GUARD"
-  upsert_env "LIG_RADIUS_AUTH" "1812"
-  upsert_env "LIG_RADIUS_ACCT" "1813"
+  if ! grep -q '^LIG_RADIUS_AUTH=' "$env_file" 2>/dev/null; then
+    upsert_env "LIG_RADIUS_AUTH" "1812"
+  fi
+  if ! grep -q '^LIG_RADIUS_ACCT=' "$env_file" 2>/dev/null; then
+    upsert_env "LIG_RADIUS_ACCT" "1813"
+  fi
 
   # Профили
   upsert_env "COMPOSE_PROFILES" "$selected_modules"
