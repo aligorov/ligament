@@ -27,7 +27,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: twofa
-      POSTGRES_PASSWORD: "${TWOFA_PG_PASSWORD:?Пароль БД не задан: создайте .env (см. install.sh)}"
+      POSTGRES_PASSWORD: "${TWOFA_PG_PASSWORD:-twofa_secret}"
       POSTGRES_DB: twofa
     volumes:
       - twofa_pgdata:/var/lib/postgresql/data
@@ -52,7 +52,7 @@ services:
       db:
         condition: service_healthy
     environment:
-      TWOFA_DB_DSN: "host=db port=5432 user=twofa dbname=twofa password='${TWOFA_PG_PASSWORD:?Пароль БД не задан}'"
+      TWOFA_DB_DSN: "host=db port=5432 user=twofa dbname=twofa password='${TWOFA_PG_PASSWORD:-twofa_secret}'"
       TRUSTED_PROXIES: "${TRUSTED_PROXIES:-127.0.0.0/8,::1/128,172.16.0.0/12,10.0.0.0/8,192.168.0.0/16}"
       # ICE / STUN / TURN интеграция (если настроен внешний ICE на VPS)
       TURN_SERVER: "${LIG_TURN_SERVER:-}"
@@ -110,8 +110,6 @@ services:
     depends_on:
       chat-db:
         condition: service_healthy
-      twofa:
-        condition: service_started
     volumes:
       - chat_pgsocket:/var/run/postgresql
       - chat_data:/var/lib/ligament-chat
@@ -129,9 +127,9 @@ services:
       - "-db-name"
       - "ligament_chat"
       - "-core-url"
-      - "http://twofa:8080"
+      - "${LIG_CORE_URL:-http://twofa:8080}"
       - "-recorder-url"
-      - "http://recorder:8095"
+      - "${LIG_RECORDER_URL:-http://recorder:8095}"
     networks:
       - ligament-net
 
@@ -238,8 +236,6 @@ services:
     depends_on:
       ticket-db:
         condition: service_healthy
-      twofa:
-        condition: service_started
     volumes:
       - ticket_pgsocket:/var/run/postgresql
     ports:
@@ -254,9 +250,9 @@ services:
       - "-db-name"
       - "ligament_ticket"
       - "-core-url"
-      - "http://twofa:8080"
+      - "${LIG_CORE_URL:-http://twofa:8080}"
       - "-recorder-url"
-      - "http://recorder:8095"
+      - "${LIG_RECORDER_URL:-http://recorder:8095}"
     networks:
       - ligament-net
 
@@ -268,16 +264,13 @@ services:
     container_name: ligament-guard
     profiles: ["guard", "all"]
     restart: unless-stopped
-    depends_on:
-      twofa:
-        condition: service_started
     ports:
       - "${LIG_GUARD_PORT:-8090}:8090"
     command:
       - "-port"
       - "8090"
       - "-core-url"
-      - "http://twofa:8080"
+      - "${LIG_CORE_URL:-http://twofa:8080}"
     networks:
       - ligament-net
 

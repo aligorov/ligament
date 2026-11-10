@@ -19,14 +19,14 @@
 # ==============================================================================
 set -euo pipefail
 
-VERSION="2.2.3"
+VERSION="2.2.4"
 DEFAULT_INSTALL_DIR="/opt/ligament"
 RAW_BASE_URL="https://raw.githubusercontent.com/aligorov/ligament/main"
 target_dir=""
 env_file=".env"
 compose_file="docker-compose.yml"
 role="central"
-selected_modules="core"
+selected_modules=""
 fresh=0
 skip_preflight=0
 image_tag=""
@@ -617,7 +617,11 @@ ensure_env_file() {
   fi
 
   # Профили
-  upsert_env "COMPOSE_PROFILES" "$selected_modules"
+  if [[ -n "$selected_modules" ]]; then
+    upsert_env "COMPOSE_PROFILES" "$selected_modules"
+  elif ! grep -q '^COMPOSE_PROFILES=' "$env_file" 2>/dev/null; then
+    upsert_env "COMPOSE_PROFILES" "core"
+  fi
   [[ -n "$image_tag" ]] && upsert_env "TWOFA_IMAGE_TAG" "$image_tag"
 
   # Гарантия наличия .gitignore
@@ -869,26 +873,49 @@ update_services() {
 }
 
 # ------------------------------------------------------------------------------
-# ПОДКЛЮЧЕНИЕ ОТДЕЛЬНОГО МОДУЛЯ (ИНКРЕМЕНТАЛЬНЫЙ ЗАПУСК БЕЗ ПЕРЕЗАГРУЗКИ ЯДРА)
+# ПОДКЛЮЧЕНИЕ ОТДЕЛЬНОГО МОДУЛЯ (ПОДДЕРЖКА УСТАНОВКИ НА ОТДЕЛЬНЫЙ ХОСТ)
 # ------------------------------------------------------------------------------
 add_or_start_module() {
   local mod="$1"
+
+  # Проверяем, есть ли на ЭТОМ хосте локально установленное ядро Core 2FA
+  local local_core_cid=""
+  local_core_cid="$(find_container_by_module "core")"
+
+  local current_profs=""
+  if [[ -f "$env_file" ]]; then
+    current_profs="$(grep '^COMPOSE_PROFILES=' "$env_file" 2>/dev/null | cut -d= -f2 | tr -d '\r\n ' || true)"
+  fi
+
+  if [[ -n "$local_core_cid" && -n "$current_profs" ]]; then
+    # На этом хосте УЖЕ работает Core, добавляем модуль инкрементально
+    if [[ "$current_profs" == "all" ]]; then
+      selected_modules="all"
+    elif [[ ",$current_profs," != *",$mod,"* ]]; then
+      selected_modules="${current_profs},${mod}"
+    else
+      selected_modules="$current_profs"
+    fi
+  else
+    # Это ОТДЕЛЬНЫЙ ХОСТ или чистая установка ТОЛЬКО этого модуля!
+    selected_modules="$mod"
+  fi
+
   ensure_required_files
   ensure_env_file
 
-  local current_profs
-  current_profs="$(grep '^COMPOSE_PROFILES=' "$env_file" 2>/dev/null | cut -d= -f2 || echo "core")"
-
-  if [[ "$current_profs" == "all" ]]; then
-    selected_modules="all"
-  elif [[ "$current_profs" != *"$mod"* ]]; then
-    selected_modules="${current_profs},${mod}"
-  else
-    selected_modules="$current_profs"
+  # Если модуль требует связь с Core, а Core на этом хосте нет — настраиваем адрес удаленного сервера
+  if [[ "$mod" == "guard" || "$mod" == "chat" || "$mod" == "ticket" ]]; then
+    if [[ -z "$local_core_cid" ]]; then
+      local ext_core=""
+      ext_core="$(grep '^LIG_CORE_URL=' "$env_file" 2>/dev/null | cut -d= -f2 | tr -d '\r\n ' || true)"
+      if [[ -z "$ext_core" || "$ext_core" == "http://twofa:8080" ]]; then
+        say "Установка модуля [$mod] на отдельном сервере (без локального Core 2FA)."
+        prompt_read "${C_BOLD}Введите URL центрального сервера Core 2FA [http://10.10.20.100:8080]: ${C_RESET}" ext_core "http://10.10.20.100:8080"
+      fi
+      upsert_env "LIG_CORE_URL" "$ext_core"
+    fi
   fi
-
-  upsert_env "COMPOSE_PROFILES" "$selected_modules"
-  say "Подключение модуля [$mod] к активному профилю: $selected_modules..."
 
   local svcs=("$mod")
   case "$mod" in
@@ -910,10 +937,10 @@ add_or_start_module() {
   done
 
   say "Загрузка Docker-образов для: ${svcs[*]}..."
-  $DC_CMD pull "${svcs[@]}" || warn "Некоторые образы не удалось обновить, использую локальные кэшированные..."
+  $DC_CMD --profile "$mod" pull "${svcs[@]}" || warn "Некоторые образы не удалось обновить, использую локальные кэшированные..."
 
-  say "Запуск сервисов без остановки работающих контейнеров (--no-recreate)..."
-  $DC_CMD up -d --no-recreate "${svcs[@]}"
+  say "Запуск модуля [$mod] на хосте (--profile $mod)..."
+  $DC_CMD --profile "$mod" up -d --no-recreate "${svcs[@]}"
 
   local server_ip
   server_ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
