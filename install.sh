@@ -19,7 +19,7 @@
 # ==============================================================================
 set -euo pipefail
 
-VERSION="2.2.0"
+VERSION="2.2.1"
 DEFAULT_INSTALL_DIR="/opt/ligament"
 RAW_BASE_URL="https://raw.githubusercontent.com/aligorov/ligament/main"
 target_dir=""
@@ -57,17 +57,17 @@ C_MAGENTA="${CLR_ESC}1;35m"
 C_CYAN="${CLR_ESC}1;36m"
 C_WHITE="${CLR_ESC}1;37m"
 
-say()    { printf "${C_GREEN}==>${C_RESET} %b\n" "$*"; }
-info()   { printf "${C_CYAN}[i]${C_RESET} %b\n" "$*"; }
-warn()   { printf "${C_YELLOW}[!][Предупреждение]${C_RESET} %b\n" "$*"; }
+say()    { printf "${C_GREEN}==>${C_RESET} %b\n" "$*" >&2; }
+info()   { printf "${C_CYAN}[i]${C_RESET} %b\n" "$*" >&2; }
+warn()   { printf "${C_YELLOW}[!][Предупреждение]${C_RESET} %b\n" "$*" >&2; }
 die()    { printf "${C_RED}[X][Ошибка]${C_RESET} %b\n" "$*" >&2; exit 1; }
-divider(){ printf "${C_DIM}────────────────────────────────────────────────────────────────────────${C_RESET}\n"; }
+divider(){ printf "${C_DIM}────────────────────────────────────────────────────────────────────────${C_RESET}\n" >&2; }
 
 # Безопасное чтение ввода пользователя с поддержкой /dev/tty и очисткой \r
 prompt_read() {
   local prompt_text="$1" var_name="$2" default_val="${3:-}"
   local val=""
-  printf "%b" "$prompt_text"
+  printf "%b" "$prompt_text" >&2
   if [[ -c /dev/tty ]]; then
     read -r val < /dev/tty || true
   elif [[ -t 0 ]]; then
